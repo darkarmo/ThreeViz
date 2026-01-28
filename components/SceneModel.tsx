@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useGLTF, useMatcapTexture } from '@react-three/drei';
@@ -14,15 +15,6 @@ interface SceneModelProps {
 const MeshComp = 'mesh' as any;
 const Primitive = 'primitive' as any;
 const MeshStandardMaterial = 'meshStandardMaterial' as any;
-
-// Fix: Define geometry components as constants to avoid JSX intrinsic element errors.
-const BoxGeometryComp = 'boxGeometry' as any;
-const SphereGeometryComp = 'sphereGeometry' as any;
-const TorusGeometryComp = 'torusGeometry' as any;
-const CylinderGeometryComp = 'cylinderGeometry' as any;
-const ConeGeometryComp = 'coneGeometry' as any;
-const TorusKnotGeometryComp = 'torusKnotGeometry' as any;
-const IcosahedronGeometryComp = 'icosahedronGeometry' as any;
 
 /**
  * Separated component to handle custom model loading.
@@ -157,14 +149,13 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
 
   return (
     <MeshComp castShadow receiveShadow>
-      {/* Fix: Use defined geometry components instead of lowercase intrinsic elements to satisfy TypeScript. */}
-      {modelType === 'box' && <BoxGeometryComp args={[1, 1, 1]} />}
-      {modelType === 'sphere' && <SphereGeometryComp args={[0.7, 64, 64]} />}
-      {modelType === 'torus' && <TorusGeometryComp args={[0.5, 0.2, 32, 100]} />}
-      {modelType === 'cylinder' && <CylinderGeometryComp args={[0.5, 0.5, 1, 32]} />}
-      {modelType === 'cone' && <ConeGeometryComp args={[0.5, 1, 32]} />}
-      {modelType === 'knot' && <TorusKnotGeometryComp args={[0.4, 0.15, 128, 32]} />}
-      {modelType === 'icosahedron' && <IcosahedronGeometryComp args={[0.8, 15]} />}
+      {modelType === 'box' && <boxGeometry args={[1, 1, 1]} />}
+      {modelType === 'sphere' && <sphereGeometry args={[0.7, 64, 64]} />}
+      {modelType === 'torus' && <torusGeometry args={[0.5, 0.2, 32, 100]} />}
+      {modelType === 'cylinder' && <cylinderGeometry args={[0.5, 0.5, 1, 32]} />}
+      {modelType === 'cone' && <coneGeometry args={[0.5, 1, 32]} />}
+      {modelType === 'knot' && <torusKnotGeometry args={[0.4, 0.15, 128, 32]} />}
+      {modelType === 'icosahedron' && <icosahedronGeometry args={[0.8, 15]} />}
       
       {activeSettings ? (
         <Primitive object={createMaterial(activeSettings)} attach="material" />

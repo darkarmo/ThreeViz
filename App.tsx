@@ -41,6 +41,7 @@ import SceneModel from './components/SceneModel';
 import LightsPanel from './components/LightsPanel';
 import EffectsPanel from './components/EffectsPanel';
 
+// Initialize RectAreaLight uniforms
 RectAreaLightUniformsLib.init();
 
 const AmbientLightComp = 'ambientLight' as any;
@@ -60,13 +61,12 @@ const ColorComp = 'color' as any;
 const DynamicLight: React.FC<{ light: LightSettings, globalShowHelpers: boolean }> = ({ light, globalShowHelpers }) => {
   const lightRef = useRef<any>(null);
   
-  // Fix: Cast useHelper to any to avoid TypeScript errors where inferred arguments are restricted to 'never' 
-  // due to complex union types or null checks on the target ref.
+  // Use as any for useHelper to avoid strict ref type mismatches in build
   (useHelper as any)(globalShowHelpers && light.type === 'directional' ? lightRef : null, THREE.DirectionalLightHelper, 1, 'white');
   (useHelper as any)(globalShowHelpers && light.type === 'point' ? lightRef : null, THREE.PointLightHelper, 0.5, light.color);
   (useHelper as any)(globalShowHelpers && light.type === 'spot' ? lightRef : null, THREE.SpotLightHelper, 'white');
   (useHelper as any)(globalShowHelpers && light.type === 'hemisphere' ? lightRef : null, THREE.HemisphereLightHelper, 2, light.color);
-  (useHelper as any)(globalShowHelpers && light.type === 'rectArea' ? lightRef : null, RectAreaLightHelper, 'white');
+  (useHelper as any)(globalShowHelpers && light.type === 'rectArea' ? lightRef : null, RectAreaLightHelper as any, 'white');
   (useHelper as any)(globalShowHelpers && light.showShadowHelper && lightRef.current?.shadow?.camera ? lightRef : null, THREE.CameraHelper);
 
   switch (light.type) {
@@ -160,11 +160,11 @@ export default function App() {
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".glb,.gltf,.obj" />
       
       <main className="relative flex-1 bg-black">
-        {isPending && (
+        {isPending ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 pointer-events-none">
             <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
           </div>
-        )}
+        ) : null}
 
         <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 2]} gl={{ antialias: true, alpha: false, stencil: false }}>
           <ColorComp attach="background" args={[state.scene.background]} />
@@ -174,7 +174,7 @@ export default function App() {
           <AmbientLightComp intensity={state.scene.ambientIntensity} />
           {state.lights.map((light) => <DynamicLight key={light.id} light={light} globalShowHelpers={state.scene.showHelpers} />)}
           
-          {state.scene.environmentPreset !== 'none' && <Environment preset={state.scene.environmentPreset as any} />}
+          {state.scene.environmentPreset !== 'none' ? <Environment preset={state.scene.environmentPreset as any} /> : null}
           
           <GroupComp position={[0, 0, 0]}>
             <Float speed={1.5} rotationIntensity={0.2} floatIntensity={state.scene.showPlane ? 0 : 0.5}>
@@ -190,7 +190,7 @@ export default function App() {
             </Float>
           </GroupComp>
 
-          {state.scene.showPlane && (
+          {state.scene.showPlane ? (
             <MeshComp rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.0, 0]} receiveShadow>
               <PlaneGeometryComp args={[100, 100]} />
               <MeshStandardMaterialComp 
@@ -201,10 +201,10 @@ export default function App() {
                 opacity={state.scene.planeOpacity} 
               />
             </MeshComp>
-          )}
+          ) : null}
 
-          {state.scene.contactShadows && <ContactShadows position={[0, -0.99, 0]} opacity={state.scene.shadowOpacity} scale={15} blur={state.scene.shadowBlur} far={3} />}
-          {state.scene.gridHelper && state.scene.showPlane && <Grid position={[0, -0.995, 0]} args={[20, 20]} sectionColor="#cbd5e1" cellColor="#94a3b8" fadeDistance={25} infiniteGrid />}
+          {state.scene.contactShadows ? <ContactShadows position={[0, -0.99, 0]} opacity={state.scene.shadowOpacity} scale={15} blur={state.scene.shadowBlur} far={3} /> : null}
+          {state.scene.gridHelper && state.scene.showPlane ? <Grid position={[0, -0.995, 0]} args={[20, 20]} sectionColor="#cbd5e1" cellColor="#94a3b8" fadeDistance={25} infiniteGrid /> : null}
           
           <EffectComposer multisampling={4}>
             {state.effects.smaa.enabled ? <SMAA /> : null}
@@ -259,10 +259,10 @@ export default function App() {
           <button onClick={() => setActiveTab('code')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'code' ? 'text-emerald-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Code size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Export</span></button>
         </div>
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-2">
-          {activeTab === 'settings' && <Sidebar state={state} updateState={updateState} updateMaterial={updateMaterial} setSelectedMaterialId={(id) => setTopState('selectedMaterialId', id)} />}
-          {activeTab === 'lights' && <LightsPanel lights={state.lights} onUpdateLights={handleUpdateLights} showHelpers={state.scene.showHelpers} onToggleHelpers={(v) => updateState('scene', 'showHelpers', v)} sceneAmbient={state.scene.ambientIntensity} onUpdateSceneAmbient={(v) => updateState('scene', 'ambientIntensity', v)} envPreset={state.scene.environmentPreset} onUpdateEnvPreset={(v) => updateState('scene', 'environmentPreset', v)} />}
-          {activeTab === 'effects' && <EffectsPanel effects={state.effects} onUpdateEffect={updateEffect} />}
-          {activeTab === 'code' && <CodePanel state={state} />}
+          {activeTab === 'settings' ? <Sidebar state={state} updateState={updateState} updateMaterial={updateMaterial} setSelectedMaterialId={(id) => setTopState('selectedMaterialId', id)} /> : null}
+          {activeTab === 'lights' ? <LightsPanel lights={state.lights} onUpdateLights={handleUpdateLights} showHelpers={state.scene.showHelpers} onToggleHelpers={(v) => updateState('scene', 'showHelpers', v)} sceneAmbient={state.scene.ambientIntensity} onUpdateSceneAmbient={(v) => updateState('scene', 'ambientIntensity', v)} envPreset={state.scene.environmentPreset} onUpdateEnvPreset={(v) => updateState('scene', 'environmentPreset', v)} /> : null}
+          {activeTab === 'effects' ? <EffectsPanel effects={state.effects} onUpdateEffect={updateEffect} /> : null}
+          {activeTab === 'code' ? <CodePanel state={state} /> : null}
         </div>
       </div>
     </div>

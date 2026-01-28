@@ -153,15 +153,15 @@ ${lightsCode}
 
       {/* Post Processing */}
       <EffectComposer>
-        {${state.effects.smaa.enabled} && <SMAA />}
-        {${state.effects.bloom.enabled} && (
+        {${state.effects.smaa.enabled} ? <SMAA /> : null}
+        {${state.effects.bloom.enabled} ? (
           <Bloom 
             intensity={${state.effects.bloom.intensity.toFixed(1)}} 
             luminanceThreshold={${state.effects.bloom.threshold.toFixed(2)}} 
             mipmapBlur 
           />
-        )}
-        {${state.effects.glitch.enabled} && <Glitch />}
+        ) : null}
+        {${state.effects.glitch.enabled} ? <Glitch /> : null}
       </EffectComposer>
 
       {/* Floor Elements */}
@@ -194,7 +194,7 @@ ${state.scene.contactShadows ? `      <ContactShadows position={[0, -0.99, 0]} o
           className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition-all text-slate-400 hover:text-white border border-slate-700 cursor-pointer"
         >
           {copied ? <Check size={12} className="text-emerald-400" /> : <Terminal size={12} />}
-          <span className="text-[10px] font-bold uppercase">{copied ? 'Copied' : 'Copy All'}</span>
+          <span className="text-[10px] font-bold uppercase">{copied ? 'Copy All' : 'Copy All'}</span>
         </button>
       </div>
 
