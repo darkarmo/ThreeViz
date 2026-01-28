@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef, Suspense, useTransition } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -61,13 +62,14 @@ const ColorComp = 'color' as any;
 const DynamicLight: React.FC<{ light: LightSettings, globalShowHelpers: boolean }> = ({ light, globalShowHelpers }) => {
   const lightRef = useRef<any>(null);
   
-  // Helpers are conditionally attached to the light refs
-  useHelper(globalShowHelpers && light.type === 'directional' ? lightRef : null, THREE.DirectionalLightHelper, 1, 'white');
-  useHelper(globalShowHelpers && light.type === 'point' ? lightRef : null, THREE.PointLightHelper, 0.5, light.color);
-  useHelper(globalShowHelpers && light.type === 'spot' ? lightRef : null, THREE.SpotLightHelper, 'white');
-  useHelper(globalShowHelpers && light.type === 'hemisphere' ? lightRef : null, THREE.HemisphereLightHelper, 2, light.color);
+  // Fix: Cast helper constructors to any to avoid "Argument of type [string] is not assignable to parameter of type 'never'"
+  // errors caused by TypeScript incorrectly inferring argument types when the ref is conditionally null.
+  useHelper(globalShowHelpers && light.type === 'directional' ? lightRef : null, THREE.DirectionalLightHelper as any, 1, 'white');
+  useHelper(globalShowHelpers && light.type === 'point' ? lightRef : null, THREE.PointLightHelper as any, 0.5, light.color);
+  useHelper(globalShowHelpers && light.type === 'spot' ? lightRef : null, THREE.SpotLightHelper as any, 'white');
+  useHelper(globalShowHelpers && light.type === 'hemisphere' ? lightRef : null, THREE.HemisphereLightHelper as any, 2, light.color);
   useHelper(globalShowHelpers && light.type === 'rectArea' ? lightRef : null, RectAreaLightHelper as any, 'white');
-  useHelper(globalShowHelpers && light.showShadowHelper && lightRef.current?.shadow?.camera ? lightRef : null, THREE.CameraHelper);
+  useHelper(globalShowHelpers && light.showShadowHelper && lightRef.current?.shadow?.camera ? lightRef : null, THREE.CameraHelper as any);
 
   switch (light.type) {
     case 'directional':
@@ -210,7 +212,7 @@ export default function App() {
           
           <EffectComposer multisampling={4}>
             {state.effects.smaa.enabled && <SMAA />}
-            {state.effects.fxaa.enabled && <FXAA />}
+            {state.effects.fxAA.enabled && <FXAA />}
             {state.effects.bloom.enabled && (
               <Bloom 
                 luminanceThreshold={state.effects.bloom.threshold} 
