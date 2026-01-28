@@ -16,6 +16,15 @@ const MeshComp = 'mesh' as any;
 const Primitive = 'primitive' as any;
 const MeshStandardMaterial = 'meshStandardMaterial' as any;
 
+// Fix: Define geometry elements as constants to bypass JSX intrinsic element errors
+const BoxGeometry = 'boxGeometry' as any;
+const SphereGeometry = 'sphereGeometry' as any;
+const TorusGeometry = 'torusGeometry' as any;
+const CylinderGeometry = 'cylinderGeometry' as any;
+const ConeGeometry = 'coneGeometry' as any;
+const TorusKnotGeometry = 'torusKnotGeometry' as any;
+const IcosahedronGeometry = 'icosahedronGeometry' as any;
+
 /**
  * Separated component to handle custom model loading.
  * This prevents the 'useGLTF' hook from being called with an empty string
@@ -149,13 +158,14 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
 
   return (
     <MeshComp castShadow receiveShadow>
-      {modelType === 'box' && <boxGeometry args={[1, 1, 1]} />}
-      {modelType === 'sphere' && <sphereGeometry args={[0.7, 64, 64]} />}
-      {modelType === 'torus' && <torusGeometry args={[0.5, 0.2, 32, 100]} />}
-      {modelType === 'cylinder' && <cylinderGeometry args={[0.5, 0.5, 1, 32]} />}
-      {modelType === 'cone' && <coneGeometry args={[0.5, 1, 32]} />}
-      {modelType === 'knot' && <torusKnotGeometry args={[0.4, 0.15, 128, 32]} />}
-      {modelType === 'icosahedron' && <icosahedronGeometry args={[0.8, 15]} />}
+      {/* Fix: Use the defined geometry constants */}
+      {modelType === 'box' && <BoxGeometry args={[1, 1, 1]} />}
+      {modelType === 'sphere' && <SphereGeometry args={[0.7, 64, 64]} />}
+      {modelType === 'torus' && <TorusGeometry args={[0.5, 0.2, 32, 100]} />}
+      {modelType === 'cylinder' && <CylinderGeometry args={[0.5, 0.5, 1, 32]} />}
+      {modelType === 'cone' && <ConeGeometry args={[0.5, 1, 32]} />}
+      {modelType === 'knot' && <TorusKnotGeometry args={[0.4, 0.15, 128, 32]} />}
+      {modelType === 'icosahedron' && <IcosahedronGeometry args={[0.8, 15]} />}
       
       {activeSettings ? (
         <Primitive object={createMaterial(activeSettings)} attach="material" />

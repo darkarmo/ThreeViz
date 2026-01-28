@@ -44,7 +44,6 @@ import EffectsPanel from './components/EffectsPanel';
 // Initialize RectAreaLight uniforms
 RectAreaLightUniformsLib.init();
 
-// Type-safe component aliases for Three.js elements
 const AmbientLightComp = 'ambientLight' as any;
 const DirectionalLightComp = 'directionalLight' as any;
 const PointLightComp = 'pointLight' as any;
@@ -207,86 +206,73 @@ export default function App() {
           {state.scene.gridHelper && state.scene.showPlane ? <Grid position={[0, -0.995, 0]} args={[20, 20]} sectionColor="#cbd5e1" cellColor="#94a3b8" fadeDistance={25} infiniteGrid /> : null}
           
           <EffectComposer multisampling={4}>
-            {/* Conditional rendering for effects to avoid unsupported 'enabled' prop errors */}
-            {state.effects.smaa.enabled && <SMAA />}
-            {state.effects.fxaa.enabled && <FXAA />}
-            {state.effects.bloom.enabled && (
-              <Bloom 
-                luminanceThreshold={state.effects.bloom.threshold} 
-                intensity={state.effects.bloom.intensity} 
-                radius={state.effects.bloom.radius} 
-                mipmapBlur 
-              />
-            )}
-            {state.effects.glitch.enabled && (
-              <Glitch 
-                delay={state.effects.glitch.delay} 
-                duration={state.effects.glitch.duration} 
-                strength={state.effects.glitch.strength} 
-                mode={state.effects.glitch.mode} 
-              />
-            )}
-            {state.effects.dotScreen.enabled && (
-              <DotScreen 
-                angle={state.effects.dotScreen.angle} 
-                scale={state.effects.dotScreen.scale} 
-              />
-            )}
-            {state.effects.pixelation.enabled && (
-              <Pixelation 
-                granularity={state.effects.pixelation.granularity} 
-              />
-            )}
-            {state.effects.depthOfField.enabled && (
-              <DepthOfField 
-                focusDistance={state.effects.depthOfField.focusDistance} 
-                focalLength={state.effects.depthOfField.focalLength} 
-                bokehScale={state.effects.depthOfField.bokehScale} 
-                height={state.effects.depthOfField.height} 
-              />
-            )}
-            {state.effects.noise.enabled && (
-              <Noise 
-                opacity={state.effects.noise.opacity} 
-              />
-            )}
-            {state.effects.vignette.enabled && (
-              <Vignette 
-                offset={state.effects.vignette.offset} 
-                darkness={state.effects.vignette.darkness} 
-              />
-            )}
-            {state.effects.chromaticAberration.enabled && (
-              <ChromaticAberration 
-                offset={new THREE.Vector2(state.effects.chromaticAberration.offset[0], state.effects.chromaticAberration.offset[1])} 
-              />
-            )}
-            {state.effects.scanline.enabled && (
-              <Scanline 
-                density={state.effects.scanline.density} 
-                opacity={state.effects.scanline.opacity} 
-              />
-            )}
-            {state.effects.ssao.enabled && (
-              <SSAO 
-                samples={state.effects.ssao.samples} 
-                radius={state.effects.ssao.radius} 
-                intensity={state.effects.ssao.intensity} 
-              />
-            )}
-            {state.effects.outline.enabled && (
-              <Outline 
-                edgeStrength={state.effects.outline.edgeStrength} 
-                pulseSpeed={state.effects.outline.pulseSpeed} 
-                visibleEdgeColor={parseInt(state.effects.outline.visibleEdgeColor.replace('#', '0x'))} 
-                hiddenEdgeColor={parseInt(state.effects.outline.hiddenEdgeColor.replace('#', '0x'))} 
-              />
-            )}
+            <SMAA enabled={state.effects.smaa.enabled} />
+            <FXAA enabled={state.effects.fxaa.enabled} />
+            <Bloom 
+              enabled={state.effects.bloom.enabled}
+              luminanceThreshold={state.effects.bloom.threshold} 
+              intensity={state.effects.bloom.intensity} 
+              radius={state.effects.bloom.radius} 
+              mipmapBlur 
+            />
+            <Glitch 
+              enabled={state.effects.glitch.enabled}
+              delay={state.effects.glitch.delay} 
+              duration={state.effects.glitch.duration} 
+              strength={state.effects.glitch.strength} 
+              mode={state.effects.glitch.mode} 
+            />
+            <DotScreen 
+              enabled={state.effects.dotScreen.enabled}
+              angle={state.effects.dotScreen.angle} 
+              scale={state.effects.dotScreen.scale} 
+            />
+            <Pixelation 
+              enabled={state.effects.pixelation.enabled}
+              granularity={state.effects.pixelation.granularity} 
+            />
+            <DepthOfField 
+              enabled={state.effects.depthOfField.enabled}
+              focusDistance={state.effects.depthOfField.focusDistance} 
+              focalLength={state.effects.depthOfField.focalLength} 
+              bokehScale={state.effects.depthOfField.bokehScale} 
+              height={state.effects.depthOfField.height} 
+            />
+            <Noise 
+              enabled={state.effects.noise.enabled}
+              opacity={state.effects.noise.opacity} 
+            />
+            <Vignette 
+              enabled={state.effects.vignette.enabled}
+              offset={state.effects.vignette.offset} 
+              darkness={state.effects.vignette.darkness} 
+            />
+            <ChromaticAberration 
+              enabled={state.effects.chromaticAberration.enabled}
+              offset={new THREE.Vector2(state.effects.chromaticAberration.offset[0], state.effects.chromaticAberration.offset[1])} 
+            />
+            <Scanline 
+              enabled={state.effects.scanline.enabled}
+              density={state.effects.scanline.density} 
+              opacity={state.effects.scanline.opacity} 
+            />
+            <SSAO 
+              enabled={state.effects.ssao.enabled}
+              samples={state.effects.ssao.samples} 
+              radius={state.effects.ssao.radius} 
+              intensity={state.effects.ssao.intensity} 
+            />
+            <Outline 
+              enabled={state.effects.outline.enabled}
+              edgeStrength={state.effects.outline.edgeStrength} 
+              pulseSpeed={state.effects.outline.pulseSpeed} 
+              visibleEdgeColor={parseInt(state.effects.outline.visibleEdgeColor.replace('#', '0x'))} 
+              hiddenEdgeColor={parseInt(state.effects.outline.hiddenEdgeColor.replace('#', '0x'))} 
+            />
           </EffectComposer>
           <BakeShadows />
         </Canvas>
 
-        {/* Branding Overlay */}
         <div className="absolute top-8 left-8 pointer-events-none select-none">
           <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 tracking-tight">STUDIO PRO</h1>
           <p className="text-slate-500 text-[10px] tracking-[0.4em] uppercase mt-2 flex items-center gap-2">
@@ -305,7 +291,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* Control Sidebar */}
       <div className="w-[450px] h-full bg-slate-900/95 backdrop-blur-2xl border-l border-white/5 flex flex-col shadow-2xl z-10 overflow-hidden">
         <div className="flex bg-slate-950/40 p-2">
           <button onClick={() => setActiveTab('settings')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'settings' ? 'text-blue-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Settings2 size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Properties</span></button>
