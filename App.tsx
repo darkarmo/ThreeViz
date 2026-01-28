@@ -41,10 +41,8 @@ import SceneModel from './components/SceneModel';
 import LightsPanel from './components/LightsPanel';
 import EffectsPanel from './components/EffectsPanel';
 
-// Initialize RectAreaLight uniforms
 RectAreaLightUniformsLib.init();
 
-// Type-safe component references for R3F
 const AmbientLightComp = 'ambientLight' as any;
 const DirectionalLightComp = 'directionalLight' as any;
 const PointLightComp = 'pointLight' as any;
@@ -62,14 +60,14 @@ const ColorComp = 'color' as any;
 const DynamicLight: React.FC<{ light: LightSettings, globalShowHelpers: boolean }> = ({ light, globalShowHelpers }) => {
   const lightRef = useRef<any>(null);
   
-  // Fix: Cast helper constructors to any to avoid "Argument of type [string] is not assignable to parameter of type 'never'"
-  // errors caused by TypeScript incorrectly inferring argument types when the ref is conditionally null.
-  useHelper(globalShowHelpers && light.type === 'directional' ? lightRef : null, THREE.DirectionalLightHelper as any, 1, 'white');
-  useHelper(globalShowHelpers && light.type === 'point' ? lightRef : null, THREE.PointLightHelper as any, 0.5, light.color);
-  useHelper(globalShowHelpers && light.type === 'spot' ? lightRef : null, THREE.SpotLightHelper as any, 'white');
-  useHelper(globalShowHelpers && light.type === 'hemisphere' ? lightRef : null, THREE.HemisphereLightHelper as any, 2, light.color);
-  useHelper(globalShowHelpers && light.type === 'rectArea' ? lightRef : null, RectAreaLightHelper as any, 'white');
-  useHelper(globalShowHelpers && light.showShadowHelper && lightRef.current?.shadow?.camera ? lightRef : null, THREE.CameraHelper as any);
+  // Fix: Cast useHelper to any to avoid TypeScript errors where inferred arguments are restricted to 'never' 
+  // due to complex union types or null checks on the target ref.
+  (useHelper as any)(globalShowHelpers && light.type === 'directional' ? lightRef : null, THREE.DirectionalLightHelper, 1, 'white');
+  (useHelper as any)(globalShowHelpers && light.type === 'point' ? lightRef : null, THREE.PointLightHelper, 0.5, light.color);
+  (useHelper as any)(globalShowHelpers && light.type === 'spot' ? lightRef : null, THREE.SpotLightHelper, 'white');
+  (useHelper as any)(globalShowHelpers && light.type === 'hemisphere' ? lightRef : null, THREE.HemisphereLightHelper, 2, light.color);
+  (useHelper as any)(globalShowHelpers && light.type === 'rectArea' ? lightRef : null, RectAreaLightHelper, 'white');
+  (useHelper as any)(globalShowHelpers && light.showShadowHelper && lightRef.current?.shadow?.camera ? lightRef : null, THREE.CameraHelper);
 
   switch (light.type) {
     case 'directional':
@@ -101,8 +99,6 @@ export default function App() {
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fix: Use 'as any' to avoid "Spread types may only be created from object types" error
-  // when spreading into a dynamic category that TypeScript thinks might not be an object.
   const updateState = useCallback(<K extends keyof AppState, S extends keyof AppState[K]>(category: K, key: S, value: AppState[K][S]) => {
     setState(prev => ({ ...prev, [category]: { ...(prev[category] as any), [key]: value } }));
   }, []);
@@ -212,7 +208,7 @@ export default function App() {
           
           <EffectComposer multisampling={4}>
             {state.effects.smaa.enabled && <SMAA />}
-            {state.effects.fxAA.enabled && <FXAA />}
+            {state.effects.fxaa.enabled && <FXAA />}
             {state.effects.bloom.enabled && (
               <Bloom 
                 luminanceThreshold={state.effects.bloom.threshold} 
@@ -235,32 +231,34 @@ export default function App() {
           <BakeShadows />
         </Canvas>
 
-        {/* UI Overlay */}
-        <div className="absolute top-6 left-6 pointer-events-none select-none">
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">Master Visualizer</h1>
-          <p className="text-slate-500 text-[10px] tracking-[0.3em] uppercase mt-1 flex items-center gap-2">
-            <Package size={10} /> {state.scene.modelType === 'custom' ? 'Complex Asset' : 'Geometric Primitive'}
+        {/* Branding Overlay */}
+        <div className="absolute top-8 left-8 pointer-events-none select-none">
+          <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 tracking-tight">STUDIO PRO</h1>
+          <p className="text-slate-500 text-[10px] tracking-[0.4em] uppercase mt-2 flex items-center gap-2">
+            <Package size={12} className="text-slate-700" /> {state.scene.modelType === 'custom' ? 'External Mesh' : 'Standard Primitive'}
           </p>
         </div>
 
-        <button 
-          onClick={() => fileInputRef.current?.click()} 
-          className="absolute bottom-6 left-6 p-4 bg-blue-600 hover:bg-blue-500 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all hover:scale-110 active:scale-95 group cursor-pointer z-20" 
-          title="Upload GLB/OBJ"
-        >
-          <Upload size={24} className="text-white" />
-        </button>
+        <div className="absolute bottom-8 left-8 flex flex-col gap-4 z-20">
+          <button 
+            onClick={() => fileInputRef.current?.click()} 
+            className="p-5 bg-blue-600 hover:bg-blue-500 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all hover:scale-105 active:scale-95 group cursor-pointer" 
+            title="Import GLB/OBJ"
+          >
+            <Upload size={24} className="text-white" />
+          </button>
+        </div>
       </main>
 
       {/* Control Sidebar */}
-      <div className="w-[440px] h-full bg-slate-900/98 backdrop-blur-xl border-l border-slate-800 flex flex-col shadow-2xl z-10 overflow-hidden">
-        <div className="flex border-b border-slate-800">
-          <button onClick={() => setActiveTab('settings')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'settings' ? 'text-blue-400 border-blue-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Settings2 size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Props</span></button>
-          <button onClick={() => setActiveTab('lights')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'lights' ? 'text-amber-400 border-amber-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Lightbulb size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Lights</span></button>
-          <button onClick={() => setActiveTab('effects')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'effects' ? 'text-purple-400 border-purple-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Wand2 size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">FX</span></button>
-          <button onClick={() => setActiveTab('code')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'code' ? 'text-emerald-400 border-emerald-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Code size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Code</span></button>
+      <div className="w-[450px] h-full bg-slate-900/95 backdrop-blur-2xl border-l border-white/5 flex flex-col shadow-2xl z-10 overflow-hidden">
+        <div className="flex bg-slate-950/40 p-2">
+          <button onClick={() => setActiveTab('settings')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'settings' ? 'text-blue-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Settings2 size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Properties</span></button>
+          <button onClick={() => setActiveTab('lights')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'lights' ? 'text-amber-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Lightbulb size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Lights</span></button>
+          <button onClick={() => setActiveTab('effects')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'effects' ? 'text-purple-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Wand2 size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Fx</span></button>
+          <button onClick={() => setActiveTab('code')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'code' ? 'text-emerald-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Code size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Export</span></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-2">
           {activeTab === 'settings' && <Sidebar state={state} updateState={updateState} updateMaterial={updateMaterial} setSelectedMaterialId={(id) => setTopState('selectedMaterialId', id)} />}
           {activeTab === 'lights' && <LightsPanel lights={state.lights} onUpdateLights={handleUpdateLights} showHelpers={state.scene.showHelpers} onToggleHelpers={(v) => updateState('scene', 'showHelpers', v)} sceneAmbient={state.scene.ambientIntensity} onUpdateSceneAmbient={(v) => updateState('scene', 'ambientIntensity', v)} envPreset={state.scene.environmentPreset} onUpdateEnvPreset={(v) => updateState('scene', 'environmentPreset', v)} />}
           {activeTab === 'effects' && <EffectsPanel effects={state.effects} onUpdateEffect={updateEffect} />}
