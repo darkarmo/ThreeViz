@@ -1,126 +1,168 @@
 
-import React, { useMemo } from 'react';
-import { useGLTF } from '@react-three/drei';
+import React, { useMemo, useEffect } from 'react';
+import * as THREE from 'three';
+import { useGLTF, useMatcapTexture } from '@react-three/drei';
 import { MaterialSettings, ModelType } from '../types';
 
 interface SceneModelProps {
-  settings: MaterialSettings;
+  materials: Record<string, MaterialSettings>;
   modelType: ModelType;
   customUrl: string | null;
   override: boolean;
+  onMaterialsFound?: (names: string[]) => void;
 }
 
-// Fix for missing JSX intrinsic elements types in some environments by using local constant definitions
-const Mesh = 'mesh' as any;
-const BoxGeometry = 'boxGeometry' as any;
-const SphereGeometry = 'sphereGeometry' as any;
-const TorusGeometry = 'torusGeometry' as any;
-const CylinderGeometry = 'cylinderGeometry' as any;
-const ConeGeometry = 'coneGeometry' as any;
-const TorusKnotGeometry = 'torusKnotGeometry' as any;
-const IcosahedronGeometry = 'icosahedronGeometry' as any;
-
-const MeshBasicMaterial = 'meshBasicMaterial' as any;
-const MeshLambertMaterial = 'meshLambertMaterial' as any;
-const MeshPhongMaterial = 'meshPhongMaterial' as any;
-const MeshStandardMaterial = 'meshStandardMaterial' as any;
-const MeshPhysicalMaterial = 'meshPhysicalMaterial' as any;
-const MeshToonMaterial = 'meshToonMaterial' as any;
-const MeshNormalMaterial = 'meshNormalMaterial' as any;
-const MeshDepthMaterial = 'meshDepthMaterial' as any;
-const MeshMatcapMaterial = 'meshMatcapMaterial' as any;
+const MeshComp = 'mesh' as any;
 const Primitive = 'primitive' as any;
+const MeshStandardMaterial = 'meshStandardMaterial' as any;
 
 /**
- * CustomModel component handles loading external GLTF assets
- * It is separated to allow Suspense to work correctly with useGLTF
+ * Separated component to handle custom model loading.
+ * This prevents the 'useGLTF' hook from being called with an empty string
+ * when the user is viewing built-in geometries.
  */
-const CustomModel = ({ url }: { url: string }) => {
+const CustomModelInstance = ({ 
+  url, 
+  onMaterialsFound, 
+  nativeMaterials, 
+  override 
+}: { 
+  url: string, 
+  onMaterialsFound?: (names: string[]) => void,
+  nativeMaterials: Record<string, THREE.Material>,
+  override: boolean
+}) => {
   const { scene } = useGLTF(url) as any;
+
+  // Scan for materials only when the scene is loaded/changed
+  useEffect(() => {
+    if (scene && onMaterialsFound) {
+      const foundNames = new Set<string>();
+      scene.traverse((child: any) => {
+        if (child.isMesh) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          mats.forEach((m: any) => {
+            if (m && m.name) foundNames.add(m.name);
+          });
+        }
+      });
+      if (foundNames.size > 0) {
+        onMaterialsFound(Array.from(foundNames));
+      }
+    }
+  }, [scene, onMaterialsFound]);
+
+  // Apply visual settings and overrides
+  useEffect(() => {
+    if (scene) {
+      scene.traverse((child: any) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          
+          if (override) {
+            if (Array.isArray(child.material)) {
+              child.material = child.material.map((orig: any) => {
+                const name = orig?.name;
+                return (name && nativeMaterials[name]) || orig;
+              });
+            } else if (child.material) {
+              const name = child.material.name;
+              const matched = name && nativeMaterials[name];
+              if (matched) child.material = matched;
+            }
+          }
+        }
+      });
+    }
+  }, [scene, nativeMaterials, override]);
+
   return <Primitive object={scene} scale={2} />;
 };
 
-/**
- * SceneModel component renders either a built-in geometry or a custom loaded model
- * It applies the material settings defined in the studio properties
- */
-const SceneModel: React.FC<SceneModelProps> = ({ settings, modelType, customUrl }) => {
-  // Memoize geometry based on model type selection
-  const geometry = useMemo(() => {
-    switch (modelType) {
-      case 'box': return <BoxGeometry args={[1, 1, 1]} />;
-      case 'sphere': return <SphereGeometry args={[0.7, 64, 64]} />;
-      case 'torus': return <TorusGeometry args={[0.5, 0.2, 32, 100]} />;
-      case 'cylinder': return <CylinderGeometry args={[0.5, 0.5, 1, 32]} />;
-      case 'cone': return <ConeGeometry args={[0.5, 1, 32]} />;
-      case 'knot': return <TorusKnotGeometry args={[0.4, 0.15, 128, 32]} />;
-      case 'icosahedron':
-      default:
-        return <IcosahedronGeometry args={[0.8, 15]} />;
-    }
-  }, [modelType]);
+const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl, override, onMaterialsFound }) => {
+  const [matcapTexture] = useMatcapTexture(0, 256);
 
-  // Memoize material parameters based on the current material settings
-  const material = useMemo(() => {
-    const params: any = {
-      color: settings.color,
+  const createMaterial = (settings: MaterialSettings) => {
+    const isTransparent = settings.opacity < 1 || settings.transmission > 0 || settings.transparent;
+    const baseProps: any = {
+      color: new THREE.Color(settings.color),
       wireframe: settings.wireframe,
-      transparent: settings.transparent || settings.opacity < 1 || settings.transmission > 0,
+      transparent: isTransparent,
       opacity: settings.opacity,
+      side: THREE.DoubleSide,
+      name: settings.name // CRITICAL: This allows subsequent overrides to find the right mesh
     };
 
-    // Add properties for materials that support lighting/PBR
     if (['phong', 'lambert', 'standard', 'physical'].includes(settings.type)) {
-      params.emissive = settings.emissive;
-      params.emissiveIntensity = settings.emissiveIntensity;
+      baseProps.emissive = new THREE.Color(settings.emissive);
+      baseProps.emissiveIntensity = settings.emissiveIntensity;
     }
 
-    if (settings.type === 'phong') {
-      params.specular = settings.specular;
-      params.shininess = settings.shininess;
-    }
-
-    if (['standard', 'physical'].includes(settings.type)) {
-      params.metalness = settings.metalness;
-      params.roughness = settings.roughness;
-      params.envMapIntensity = settings.envMapIntensity;
-    }
-
-    if (settings.type === 'physical') {
-      params.clearcoat = settings.clearcoat;
-      params.clearcoatRoughness = settings.clearcoatRoughness;
-      params.transmission = settings.transmission;
-      params.thickness = settings.thickness;
-      params.ior = settings.ior;
-    }
-
-    // Return the specific material component based on the engine type
+    let material: THREE.Material;
     switch (settings.type) {
-      case 'basic': return <MeshBasicMaterial {...params} />;
-      case 'lambert': return <MeshLambertMaterial {...params} />;
-      case 'phong': return <MeshPhongMaterial {...params} />;
-      case 'toon': return <MeshToonMaterial {...params} />;
-      case 'normal': return <MeshNormalMaterial wireframe={settings.wireframe} />;
-      case 'depth': return <MeshDepthMaterial wireframe={settings.wireframe} />;
-      case 'physical': return <MeshPhysicalMaterial {...params} />;
-      case 'matcap': return <MeshMatcapMaterial {...params} />;
+      case 'basic': material = new THREE.MeshBasicMaterial(baseProps); break;
+      case 'lambert': material = new THREE.MeshLambertMaterial(baseProps); break;
+      case 'phong': material = new THREE.MeshPhongMaterial({ ...baseProps, specular: new THREE.Color(settings.specular), shininess: settings.shininess }); break;
+      case 'toon': material = new THREE.MeshToonMaterial(baseProps); break;
+      case 'normal': material = new THREE.MeshNormalMaterial({ wireframe: settings.wireframe, name: settings.name }); break;
+      case 'depth': material = new THREE.MeshDepthMaterial({ wireframe: settings.wireframe, name: settings.name }); break;
+      case 'matcap': material = new THREE.MeshMatcapMaterial({ ...baseProps, matcap: matcapTexture }); break;
+      case 'physical': material = new THREE.MeshPhysicalMaterial({
+        ...baseProps,
+        metalness: settings.metalness,
+        roughness: settings.roughness,
+        clearcoat: settings.clearcoat,
+        clearcoatRoughness: settings.clearcoatRoughness,
+        transmission: settings.transmission,
+        thickness: settings.thickness,
+        ior: settings.ior,
+        envMapIntensity: settings.envMapIntensity
+      }); break;
       case 'standard':
       default:
-        return <MeshStandardMaterial {...params} />;
+        material = new THREE.MeshStandardMaterial({ ...baseProps, metalness: settings.metalness, roughness: settings.roughness, envMapIntensity: settings.envMapIntensity });
     }
-  }, [settings]);
+    return material;
+  };
 
-  // If a custom model is active and a URL is provided, render it instead of basic geometry
+  const nativeMaterials = useMemo(() => {
+    const map: Record<string, THREE.Material> = {};
+    (Object.entries(materials) as [string, MaterialSettings][]).forEach(([_, settings]) => {
+      map[settings.name] = createMaterial(settings);
+    });
+    return map;
+  }, [materials, matcapTexture]);
+
   if (modelType === 'custom' && customUrl) {
-    return <CustomModel url={customUrl} />;
+    return (
+      <CustomModelInstance 
+        url={customUrl} 
+        onMaterialsFound={onMaterialsFound}
+        nativeMaterials={nativeMaterials}
+        override={override}
+      />
+    );
   }
 
-  // Default mesh rendering with chosen geometry and material
+  const activeSettings = (Object.values(materials)[0] || materials['default-material']) as MaterialSettings | undefined;
+
   return (
-    <Mesh castShadow receiveShadow>
-      {geometry}
-      {material}
-    </Mesh>
+    <MeshComp castShadow receiveShadow>
+      {modelType === 'box' && <boxGeometry args={[1, 1, 1]} />}
+      {modelType === 'sphere' && <sphereGeometry args={[0.7, 64, 64]} />}
+      {modelType === 'torus' && <torusGeometry args={[0.5, 0.2, 32, 100]} />}
+      {modelType === 'cylinder' && <cylinderGeometry args={[0.5, 0.5, 1, 32]} />}
+      {modelType === 'cone' && <coneGeometry args={[0.5, 1, 32]} />}
+      {modelType === 'knot' && <torusKnotGeometry args={[0.4, 0.15, 128, 32]} />}
+      {modelType === 'icosahedron' && <icosahedronGeometry args={[0.8, 15]} />}
+      
+      {activeSettings ? (
+        <Primitive object={createMaterial(activeSettings)} attach="material" />
+      ) : (
+        <MeshStandardMaterial color="#3b82f6" />
+      )}
+    </MeshComp>
   );
 };
 
