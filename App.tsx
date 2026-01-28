@@ -1,5 +1,4 @@
-
-import React, { useState, useCallback, useRef, Suspense, useTransition, useEffect } from 'react';
+import React, { useState, useCallback, useRef, Suspense, useTransition } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { 
@@ -44,6 +43,7 @@ import EffectsPanel from './components/EffectsPanel';
 // Initialize RectAreaLight uniforms
 RectAreaLightUniformsLib.init();
 
+// Type-safe component references for R3F
 const AmbientLightComp = 'ambientLight' as any;
 const DirectionalLightComp = 'directionalLight' as any;
 const PointLightComp = 'pointLight' as any;
@@ -60,6 +60,8 @@ const ColorComp = 'color' as any;
 
 const DynamicLight: React.FC<{ light: LightSettings, globalShowHelpers: boolean }> = ({ light, globalShowHelpers }) => {
   const lightRef = useRef<any>(null);
+  
+  // Helpers are conditionally attached to the light refs
   useHelper(globalShowHelpers && light.type === 'directional' ? lightRef : null, THREE.DirectionalLightHelper, 1, 'white');
   useHelper(globalShowHelpers && light.type === 'point' ? lightRef : null, THREE.PointLightHelper, 0.5, light.color);
   useHelper(globalShowHelpers && light.type === 'spot' ? lightRef : null, THREE.SpotLightHelper, 'white');
@@ -97,8 +99,10 @@ export default function App() {
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fix: Use 'as any' to avoid "Spread types may only be created from object types" error
+  // when spreading into a dynamic category that TypeScript thinks might not be an object.
   const updateState = useCallback(<K extends keyof AppState, S extends keyof AppState[K]>(category: K, key: S, value: AppState[K][S]) => {
-    setState(prev => ({ ...prev, [category]: { ...prev[category], [key]: value } }));
+    setState(prev => ({ ...prev, [category]: { ...(prev[category] as any), [key]: value } }));
   }, []);
 
   const updateEffect = useCallback(<S extends keyof AppState['effects'], P extends keyof AppState['effects'][S]>(effect: S, prop: P, value: any) => {
@@ -156,56 +160,100 @@ export default function App() {
   return (
     <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".glb,.gltf,.obj" />
+      
       <main className="relative flex-1 bg-black">
-        {isPending && <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 pointer-events-none"><Loader2 className="w-10 h-10 text-blue-500 animate-spin" /></div>}
+        {isPending && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 pointer-events-none">
+            <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+          </div>
+        )}
+
         <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 2]} gl={{ antialias: true, alpha: false, stencil: false }}>
           <ColorComp attach="background" args={[state.scene.background]} />
           <PerspectiveCamera makeDefault position={[4, 3, 4]} fov={50} />
           <OrbitControls makeDefault autoRotate={state.scene.autoRotate} autoRotateSpeed={0.5} enableDamping />
+          
           <AmbientLightComp intensity={state.scene.ambientIntensity} />
           {state.lights.map((light) => <DynamicLight key={light.id} light={light} globalShowHelpers={state.scene.showHelpers} />)}
+          
           {state.scene.environmentPreset !== 'none' && <Environment preset={state.scene.environmentPreset as any} />}
+          
           <GroupComp position={[0, 0, 0]}>
             <Float speed={1.5} rotationIntensity={0.2} floatIntensity={state.scene.showPlane ? 0 : 0.5}>
               <Suspense fallback={null}>
-                <SceneModel materials={state.materials} modelType={state.scene.modelType} customUrl={customModel} override={state.scene.overrideMaterials} onMaterialsFound={onMaterialsDiscovered} />
+                <SceneModel 
+                  materials={state.materials} 
+                  modelType={state.scene.modelType} 
+                  customUrl={customModel} 
+                  override={state.scene.overrideMaterials} 
+                  onMaterialsFound={onMaterialsDiscovered} 
+                />
               </Suspense>
             </Float>
           </GroupComp>
+
           {state.scene.showPlane && (
             <MeshComp rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.0, 0]} receiveShadow>
               <PlaneGeometryComp args={[100, 100]} />
-              <MeshStandardMaterialComp color={state.scene.planeColor} roughness={state.scene.planeRoughness} metalness={0.1} transparent={state.scene.planeOpacity < 1} opacity={state.scene.planeOpacity} />
+              <MeshStandardMaterialComp 
+                color={state.scene.planeColor} 
+                roughness={state.scene.planeRoughness} 
+                metalness={0.1} 
+                transparent={state.scene.planeOpacity < 1} 
+                opacity={state.scene.planeOpacity} 
+              />
             </MeshComp>
           )}
+
           {state.scene.contactShadows && <ContactShadows position={[0, -0.99, 0]} opacity={state.scene.shadowOpacity} scale={15} blur={state.scene.shadowBlur} far={3} />}
           {state.scene.gridHelper && state.scene.showPlane && <Grid position={[0, -0.995, 0]} args={[20, 20]} sectionColor="#cbd5e1" cellColor="#94a3b8" fadeDistance={25} infiniteGrid />}
+          
           <EffectComposer multisampling={4}>
             {state.effects.smaa.enabled && <SMAA />}
             {state.effects.fxaa.enabled && <FXAA />}
-            {state.effects.bloom.enabled && <Bloom luminanceThreshold={state.effects.bloom.threshold} intensity={state.effects.bloom.intensity} radius={state.effects.bloom.radius} mipmapBlur />}
+            {state.effects.bloom.enabled && (
+              <Bloom 
+                luminanceThreshold={state.effects.bloom.threshold} 
+                intensity={state.effects.bloom.intensity} 
+                radius={state.effects.bloom.radius} 
+                mipmapBlur 
+              />
+            )}
             {state.effects.glitch.enabled && <Glitch delay={state.effects.glitch.delay} duration={state.effects.glitch.duration} strength={state.effects.glitch.strength} mode={state.effects.glitch.mode} />}
             {state.effects.dotScreen.enabled && <DotScreen angle={state.effects.dotScreen.angle} scale={state.effects.dotScreen.scale} />}
             {state.effects.pixelation.enabled && <Pixelation granularity={state.effects.pixelation.granularity} />}
             {state.effects.depthOfField.enabled && <DepthOfField focusDistance={state.effects.depthOfField.focusDistance} focalLength={state.effects.depthOfField.focalLength} bokehScale={state.effects.depthOfField.bokehScale} height={state.effects.depthOfField.height} />}
             {state.effects.noise.enabled && <Noise opacity={state.effects.noise.opacity} />}
             {state.effects.vignette.enabled && <Vignette offset={state.effects.vignette.offset} darkness={state.effects.vignette.darkness} />}
-            {state.effects.chromaticAberration.enabled && <ChromaticAberration offset={new THREE.Vector2(...state.effects.chromaticAberration.offset)} />}
+            {state.effects.chromaticAberration.enabled && <ChromaticAberration offset={new THREE.Vector2(state.effects.chromaticAberration.offset[0], state.effects.chromaticAberration.offset[1])} />}
             {state.effects.scanline.enabled && <Scanline density={state.effects.scanline.density} opacity={state.effects.scanline.opacity} />}
             {state.effects.ssao.enabled && <SSAO samples={state.effects.ssao.samples} radius={state.effects.ssao.radius} intensity={state.effects.ssao.intensity} />}
             {state.effects.outline.enabled && <Outline edgeStrength={state.effects.outline.edgeStrength} pulseSpeed={state.effects.outline.pulseSpeed} visibleEdgeColor={parseInt(state.effects.outline.visibleEdgeColor.replace('#', '0x'))} hiddenEdgeColor={parseInt(state.effects.outline.hiddenEdgeColor.replace('#', '0x'))} />}
           </EffectComposer>
           <BakeShadows />
         </Canvas>
+
+        {/* UI Overlay */}
         <div className="absolute top-6 left-6 pointer-events-none select-none">
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">Three.js Master Control</h1>
-          <p className="text-slate-500 text-[10px] tracking-[0.3em] uppercase mt-1 flex items-center gap-2"><Package size={10} /> {state.scene.modelType === 'custom' ? 'Complex Multi-Mesh Asset' : 'Internal Geometry'}</p>
+          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">Master Visualizer</h1>
+          <p className="text-slate-500 text-[10px] tracking-[0.3em] uppercase mt-1 flex items-center gap-2">
+            <Package size={10} /> {state.scene.modelType === 'custom' ? 'Complex Asset' : 'Geometric Primitive'}
+          </p>
         </div>
-        <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-6 left-6 p-4 bg-blue-600 hover:bg-blue-500 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all hover:scale-110 active:scale-95 group cursor-pointer" title="Upload GLB/OBJ"><Upload size={24} className="text-white" /></button>
+
+        <button 
+          onClick={() => fileInputRef.current?.click()} 
+          className="absolute bottom-6 left-6 p-4 bg-blue-600 hover:bg-blue-500 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all hover:scale-110 active:scale-95 group cursor-pointer z-20" 
+          title="Upload GLB/OBJ"
+        >
+          <Upload size={24} className="text-white" />
+        </button>
       </main>
+
+      {/* Control Sidebar */}
       <div className="w-[440px] h-full bg-slate-900/98 backdrop-blur-xl border-l border-slate-800 flex flex-col shadow-2xl z-10 overflow-hidden">
         <div className="flex border-b border-slate-800">
-          <button onClick={() => setActiveTab('settings')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'settings' ? 'text-blue-400 border-blue-500 bg-slate-800/30' : 'text-slate-50 border-transparent hover:text-slate-300'}`}><Settings2 size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Props</span></button>
+          <button onClick={() => setActiveTab('settings')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'settings' ? 'text-blue-400 border-blue-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Settings2 size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Props</span></button>
           <button onClick={() => setActiveTab('lights')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'lights' ? 'text-amber-400 border-amber-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Lightbulb size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Lights</span></button>
           <button onClick={() => setActiveTab('effects')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'effects' ? 'text-purple-400 border-purple-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Wand2 size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">FX</span></button>
           <button onClick={() => setActiveTab('code')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'code' ? 'text-emerald-400 border-emerald-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Code size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Code</span></button>
