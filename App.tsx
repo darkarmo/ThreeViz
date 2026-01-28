@@ -207,26 +207,26 @@ export default function App() {
           {state.scene.gridHelper && state.scene.showPlane && <Grid position={[0, -0.995, 0]} args={[20, 20]} sectionColor="#cbd5e1" cellColor="#94a3b8" fadeDistance={25} infiniteGrid />}
           
           <EffectComposer multisampling={4}>
-            {state.effects.smaa.enabled && <SMAA />}
-            {state.effects.fxaa.enabled && <FXAA />}
-            {state.effects.bloom.enabled && (
+            {state.effects.smaa.enabled ? <SMAA /> : null}
+            {state.effects.fxaa.enabled ? <FXAA /> : null}
+            {state.effects.bloom.enabled ? (
               <Bloom 
                 luminanceThreshold={state.effects.bloom.threshold} 
                 intensity={state.effects.bloom.intensity} 
                 radius={state.effects.bloom.radius} 
                 mipmapBlur 
               />
-            )}
-            {state.effects.glitch.enabled && <Glitch delay={state.effects.glitch.delay} duration={state.effects.glitch.duration} strength={state.effects.glitch.strength} mode={state.effects.glitch.mode} />}
-            {state.effects.dotScreen.enabled && <DotScreen angle={state.effects.dotScreen.angle} scale={state.effects.dotScreen.scale} />}
-            {state.effects.pixelation.enabled && <Pixelation granularity={state.effects.pixelation.granularity} />}
-            {state.effects.depthOfField.enabled && <DepthOfField focusDistance={state.effects.depthOfField.focusDistance} focalLength={state.effects.depthOfField.focalLength} bokehScale={state.effects.depthOfField.bokehScale} height={state.effects.depthOfField.height} />}
-            {state.effects.noise.enabled && <Noise opacity={state.effects.noise.opacity} />}
-            {state.effects.vignette.enabled && <Vignette offset={state.effects.vignette.offset} darkness={state.effects.vignette.darkness} />}
-            {state.effects.chromaticAberration.enabled && <ChromaticAberration offset={new THREE.Vector2(state.effects.chromaticAberration.offset[0], state.effects.chromaticAberration.offset[1])} />}
-            {state.effects.scanline.enabled && <Scanline density={state.effects.scanline.density} opacity={state.effects.scanline.opacity} />}
-            {state.effects.ssao.enabled && <SSAO samples={state.effects.ssao.samples} radius={state.effects.ssao.radius} intensity={state.effects.ssao.intensity} />}
-            {state.effects.outline.enabled && <Outline edgeStrength={state.effects.outline.edgeStrength} pulseSpeed={state.effects.outline.pulseSpeed} visibleEdgeColor={parseInt(state.effects.outline.visibleEdgeColor.replace('#', '0x'))} hiddenEdgeColor={parseInt(state.effects.outline.hiddenEdgeColor.replace('#', '0x'))} />}
+            ) : null}
+            {state.effects.glitch.enabled ? <Glitch delay={state.effects.glitch.delay} duration={state.effects.glitch.duration} strength={state.effects.glitch.strength} mode={state.effects.glitch.mode} /> : null}
+            {state.effects.dotScreen.enabled ? <DotScreen angle={state.effects.dotScreen.angle} scale={state.effects.dotScreen.scale} /> : null}
+            {state.effects.pixelation.enabled ? <Pixelation granularity={state.effects.pixelation.granularity} /> : null}
+            {state.effects.depthOfField.enabled ? <DepthOfField focusDistance={state.effects.depthOfField.focusDistance} focalLength={state.effects.depthOfField.focalLength} bokehScale={state.effects.depthOfField.bokehScale} height={state.effects.depthOfField.height} /> : null}
+            {state.effects.noise.enabled ? <Noise opacity={state.effects.noise.opacity} /> : null}
+            {state.effects.vignette.enabled ? <Vignette offset={state.effects.vignette.offset} darkness={state.effects.vignette.darkness} /> : null}
+            {state.effects.chromaticAberration.enabled ? <ChromaticAberration offset={new THREE.Vector2(state.effects.chromaticAberration.offset[0], state.effects.chromaticAberration.offset[1])} /> : null}
+            {state.effects.scanline.enabled ? <Scanline density={state.effects.scanline.density} opacity={state.effects.scanline.opacity} /> : null}
+            {state.effects.ssao.enabled ? <SSAO samples={state.effects.ssao.samples} radius={state.effects.ssao.radius} intensity={state.effects.ssao.intensity} /> : null}
+            {state.effects.outline.enabled ? <Outline edgeStrength={state.effects.outline.edgeStrength} pulseSpeed={state.effects.outline.pulseSpeed} visibleEdgeColor={parseInt(state.effects.outline.visibleEdgeColor.replace('#', '0x'))} hiddenEdgeColor={parseInt(state.effects.outline.hiddenEdgeColor.replace('#', '0x'))} /> : null}
           </EffectComposer>
           <BakeShadows />
         </Canvas>
