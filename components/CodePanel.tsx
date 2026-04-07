@@ -27,7 +27,7 @@ const CodePanel: React.FC<CodePanelProps> = ({ state }) => {
   const generateMaterialProps = (mat: MaterialSettings) => {
     const props: string[] = [];
     if (mat.type !== 'normal' && mat.type !== 'depth') {
-      props.push(`    color: '${mat.color}'`);
+      props.push(`    color: new THREE.Color('${mat.color}')`);
     }
     props.push(`    transparent: ${mat.opacity < 1 || mat.transmission > 0}`);
     props.push(`    opacity: ${mat.opacity.toFixed(2)}`);
@@ -35,12 +35,12 @@ const CodePanel: React.FC<CodePanelProps> = ({ state }) => {
     props.push(`    name: '${mat.name}'`);
 
     if (['phong', 'lambert', 'standard', 'physical'].includes(mat.type)) {
-      props.push(`    emissive: '${mat.emissive}'`);
+      props.push(`    emissive: new THREE.Color('${mat.emissive}')`);
       props.push(`    emissiveIntensity: ${mat.emissiveIntensity.toFixed(1)}`);
     }
 
     if (mat.type === 'phong') {
-      props.push(`    specular: '${mat.specular}'`);
+      props.push(`    specular: new THREE.Color('${mat.specular}')`);
       props.push(`    shininess: ${mat.shininess.toFixed(0)}`);
     }
 
@@ -67,112 +67,129 @@ ${generateMaterialProps(mat)}
   })`)
     .join(',\n');
 
-  const generateLightCode = (light: LightSettings) => {
-    const tag = light.type === 'ambient' ? 'ambientLight' : 
-                light.type === 'directional' ? 'directionalLight' :
-                light.type === 'point' ? 'pointLight' : 
-                light.type === 'hemisphere' ? 'hemisphereLight' :
-                light.type === 'rectArea' ? 'rectAreaLight' : 'spotLight';
+  const generateLightCode = (light: LightSettings, index: number) => {
+    let code = '';
+    const lightName = `${light.type}Light_${index}`;
     
-    let extra = '';
-    if (light.type === 'hemisphere') {
-      extra = `\n        args={['${light.color}', '${light.groundColor}', ${light.intensity}]}` +
-              `\n        position={[${light.position.join(', ')}]}`;
-    } else if (light.type === 'rectArea') {
-      extra = `\n        color="${light.color}"` +
-              `\n        intensity={${light.intensity.toFixed(1)}}` +
-              `\n        width={${light.width}}` +
-              `\n        height={${light.height}}` +
-              `\n        position={[${light.position.join(', ')}]}` +
-              `\n        rotation={[${light.rotation?.join(', ')}]}`;
-    } else if (light.type !== 'ambient') {
-      extra = `\n        color="${light.color}"` +
-              `\n        intensity={${light.intensity.toFixed(1)}}` +
-              `\n        position={[${light.position.join(', ')}]}` +
-              `\n        castShadow={${light.castShadow}}`;
-    } else {
-       extra = `\n        color="${light.color}"` +
-               `\n        intensity={${light.intensity.toFixed(1)}}`;
+    switch (light.type) {
+      case 'ambient':
+        code += `const ${lightName} = new THREE.AmbientLight('${light.color}', ${light.intensity.toFixed(1)});\n`;
+        break;
+      case 'directional':
+        code += `const ${lightName} = new THREE.DirectionalLight('${light.color}', ${light.intensity.toFixed(1)});\n`;
+        code += `${lightName}.position.set(${light.position.join(', ')});\n`;
+        code += `${lightName}.castShadow = ${light.castShadow};\n`;
+        break;
+      case 'point':
+        code += `const ${lightName} = new THREE.PointLight('${light.color}', ${light.intensity.toFixed(1)});\n`;
+        code += `${lightName}.position.set(${light.position.join(', ')});\n`;
+        code += `${lightName}.castShadow = ${light.castShadow};\n`;
+        break;
+      case 'spot':
+        code += `const ${lightName} = new THREE.SpotLight('${light.color}', ${light.intensity.toFixed(1)});\n`;
+        code += `${lightName}.position.set(${light.position.join(', ')});\n`;
+        code += `${lightName}.castShadow = ${light.castShadow};\n`;
+        break;
+      case 'hemisphere':
+        code += `const ${lightName} = new THREE.HemisphereLight('${light.color}', '${light.groundColor}', ${light.intensity.toFixed(1)});\n`;
+        code += `${lightName}.position.set(${light.position.join(', ')});\n`;
+        break;
+      case 'rectArea':
+        code += `const ${lightName} = new THREE.RectAreaLight('${light.color}', ${light.intensity.toFixed(1)}, ${light.width}, ${light.height});\n`;
+        code += `${lightName}.position.set(${light.position.join(', ')});\n`;
+        if (light.rotation) {
+          code += `${lightName}.rotation.set(${light.rotation.join(', ')});\n`;
+        }
+        break;
     }
-
-    return `      <${tag}${extra} />`;
+    code += `scene.add(${lightName});`;
+    return code;
   };
 
-  const lightsCode = state.lights.map(generateLightCode).join('\n');
+  const lightsCode = state.lights.map((l, i) => generateLightCode(l, i)).join('\n\n');
 
-  const fullComponentCode = `import React, { useMemo, useEffect } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { useGLTF, Environment, ContactShadows, OrbitControls } from '@react-three/drei'
-import { EffectComposer, Bloom, Glitch, SMAA } from '@react-three/postprocessing'
-import * as THREE from 'three'
+  const hasRectAreaLight = state.lights.some(l => l.type === 'rectArea');
 
-/**
- * Three.js Visualizer - Custom Model Component
- */
-function Model({ materialsConfig, overrideEnabled }) {
-  const { scene } = useGLTF('${state.scene.modelType === 'custom' ? 'your-model-url.glb' : state.scene.modelType}')
+  const fullComponentCode = `import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+${hasRectAreaLight ? "import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';\n" : ''}
+// Basic Setup
+const canvas = document.querySelector('#webgl-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  const materials = useMemo(() => ({
-${materialsCode}
-  }), [])
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('${state.scene.background}');
 
-  useEffect(() => {
-    scene.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true
-        child.receiveShadow = true
-        
-        if (overrideEnabled) {
-          if (Array.isArray(child.material)) {
-            child.material = child.material.map(m => materials[m.name] || m)
-          } else if (child.material) {
-            const matched = materials[child.material.name]
-            if (matched) child.material = matched
-          }
-        }
-      }
-    })
-  }, [scene, materials, overrideEnabled])
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(4, 3, 4);
 
-  return <primitive object={scene} />
-}
-
-export default function Scene() {
-  return (
-    <Canvas shadows camera={{ position: [4, 3, 4], fov: 50 }}>
-      <color attach="background" args={['${state.scene.background}']} />
-      <OrbitControls makeDefault />
-      
-      {/* Lighting Configuration */}
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;${state.scene.autoRotate ? '\ncontrols.autoRotate = true;\ncontrols.autoRotateSpeed = 0.5;' : ''}
+${hasRectAreaLight ? '\nRectAreaLightUniformsLib.init();\n' : ''}
+// Lighting
 ${lightsCode}
-      
-      <React.Suspense fallback={null}>
-        <Model overrideEnabled={${state.scene.overrideMaterials}} />
-        <Environment preset="${state.scene.environmentPreset}" />
-      </React.Suspense>
 
-      {/* Post Processing */}
-      <EffectComposer>
-        {${state.effects.smaa.enabled} && <SMAA />}
-        {${state.effects.bloom.enabled} && (
-          <Bloom 
-            intensity={${state.effects.bloom.intensity.toFixed(1)}} 
-            luminanceThreshold={${state.effects.bloom.threshold.toFixed(2)}} 
-            mipmapBlur 
-          />
-        )}
-        {${state.effects.glitch.enabled} && <Glitch />}
-      </EffectComposer>
+// Materials
+const materials = {
+${materialsCode}
+};
 
-      {/* Floor Elements */}
-${state.scene.showPlane ? `      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]} receiveShadow>
-        <planeGeometry args={[100, 100]} />
-        <meshStandardMaterial color="${state.scene.planeColor}" roughness={${state.scene.planeRoughness}} />
-      </mesh>` : ''}
-${state.scene.contactShadows ? `      <ContactShadows position={[0, -0.99, 0]} opacity={${state.scene.shadowOpacity}} scale={10} blur={${state.scene.shadowBlur}} />` : ''}
-    </Canvas>
-  )
-}`;
+// Load Model
+const loader = new GLTFLoader();
+loader.load('${state.scene.modelType === 'custom' ? 'your-model-url.glb' : state.scene.modelType + '.glb'}', (gltf) => {
+    const model = gltf.scene;
+    
+    model.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            ${state.scene.overrideMaterials ? `
+            // Apply custom materials
+            if (Array.isArray(child.material)) {
+                child.material = child.material.map(m => materials[m.name] || m);
+            } else if (child.material) {
+                const matched = materials[child.material.name];
+                if (matched) child.material = matched;
+            }` : ''}
+        }
+    });
+    
+    scene.add(model);
+});
+
+${state.scene.showPlane ? `// Floor
+const floorGeometry = new THREE.PlaneGeometry(100, 100);
+const floorMaterial = new THREE.MeshStandardMaterial({ 
+    color: new THREE.Color('${state.scene.planeColor}'),
+    roughness: ${state.scene.planeRoughness},
+    transparent: ${state.scene.planeOpacity < 1},
+    opacity: ${state.scene.planeOpacity}
+});
+const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -1;
+floor.receiveShadow = true;
+scene.add(floor);` : ''}
+
+// Animation Loop
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+animate();
+
+// Handle Resize
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(fullComponentCode);
