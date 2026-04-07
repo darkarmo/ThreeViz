@@ -2,13 +2,14 @@
 import React, { useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useGLTF, useMatcapTexture } from '@react-three/drei';
-import { MaterialSettings, ModelType } from '../types';
+import { MaterialSettings, ModelType, ViewMode } from '../types';
 
 interface SceneModelProps {
   materials: Record<string, MaterialSettings>;
   modelType: ModelType;
   customUrl: string | null;
   override: boolean;
+  viewMode: ViewMode;
   onMaterialsFound?: (names: string[]) => void;
 }
 
@@ -16,42 +17,39 @@ const MeshComp = 'mesh' as any;
 const Primitive = 'primitive' as any;
 const MeshStandardMaterial = 'meshStandardMaterial' as any;
 
-// Fix: Define geometry elements as constants to bypass JSX intrinsic element errors
-const BoxGeometry = 'boxGeometry' as any;
-const SphereGeometry = 'sphereGeometry' as any;
-const TorusGeometry = 'torusGeometry' as any;
-const CylinderGeometry = 'cylinderGeometry' as any;
-const ConeGeometry = 'coneGeometry' as any;
-const TorusKnotGeometry = 'torusKnotGeometry' as any;
-const IcosahedronGeometry = 'icosahedronGeometry' as any;
+const wireframeMaterial = new THREE.MeshBasicMaterial({ color: '#4ade80', wireframe: true });
 
 /**
  * Separated component to handle custom model loading.
- * This prevents the 'useGLTF' hook from being called with an empty string
- * when the user is viewing built-in geometries.
  */
 const CustomModelInstance = ({ 
   url, 
   onMaterialsFound, 
   nativeMaterials, 
-  override 
+  override,
+  viewMode
 }: { 
   url: string, 
   onMaterialsFound?: (names: string[]) => void,
   nativeMaterials: Record<string, THREE.Material>,
-  override: boolean
+  override: boolean,
+  viewMode: ViewMode
 }) => {
   const { scene } = useGLTF(url) as any;
 
-  // Scan for materials only when the scene is loaded/changed
   useEffect(() => {
     if (scene && onMaterialsFound) {
       const foundNames = new Set<string>();
       scene.traverse((child: any) => {
         if (child.isMesh) {
           const mats = Array.isArray(child.material) ? child.material : [child.material];
-          mats.forEach((m: any) => {
-            if (m && m.name) foundNames.add(m.name);
+          mats.forEach((m: any, index: number) => {
+            if (m) {
+              if (!m.name) {
+                m.name = `Material-${m.uuid ? m.uuid.substring(0, 6) : index}`;
+              }
+              foundNames.add(m.name);
+            }
           });
         }
       });
@@ -61,15 +59,16 @@ const CustomModelInstance = ({
     }
   }, [scene, onMaterialsFound]);
 
-  // Apply visual settings and overrides
   useEffect(() => {
     if (scene) {
       scene.traverse((child: any) => {
         if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
+          child.castShadow = viewMode === 'material';
+          child.receiveShadow = viewMode === 'material';
           
-          if (override) {
+          if (viewMode === 'wireframe') {
+            child.material = wireframeMaterial;
+          } else if (override) {
             if (Array.isArray(child.material)) {
               child.material = child.material.map((orig: any) => {
                 const name = orig?.name;
@@ -84,15 +83,17 @@ const CustomModelInstance = ({
         }
       });
     }
-  }, [scene, nativeMaterials, override]);
+  }, [scene, nativeMaterials, override, viewMode]);
 
   return <Primitive object={scene} scale={2} />;
 };
 
-const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl, override, onMaterialsFound }) => {
+const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl, override, viewMode, onMaterialsFound }) => {
   const [matcapTexture] = useMatcapTexture(0, 256);
 
   const createMaterial = (settings: MaterialSettings) => {
+    if (viewMode === 'wireframe') return wireframeMaterial;
+
     const isTransparent = settings.opacity < 1 || settings.transmission > 0 || settings.transparent;
     const baseProps: any = {
       color: new THREE.Color(settings.color),
@@ -100,7 +101,7 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
       transparent: isTransparent,
       opacity: settings.opacity,
       side: THREE.DoubleSide,
-      name: settings.name // CRITICAL: This allows subsequent overrides to find the right mesh
+      name: settings.name
     };
 
     if (['phong', 'lambert', 'standard', 'physical'].includes(settings.type)) {
@@ -141,7 +142,7 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
       map[settings.name] = createMaterial(settings);
     });
     return map;
-  }, [materials, matcapTexture]);
+  }, [materials, matcapTexture, viewMode]);
 
   if (modelType === 'custom' && customUrl) {
     return (
@@ -150,6 +151,7 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
         onMaterialsFound={onMaterialsFound}
         nativeMaterials={nativeMaterials}
         override={override}
+        viewMode={viewMode}
       />
     );
   }
@@ -157,17 +159,18 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
   const activeSettings = (Object.values(materials)[0] || materials['default-material']) as MaterialSettings | undefined;
 
   return (
-    <MeshComp castShadow receiveShadow>
-      {/* Fix: Use the defined geometry constants */}
-      {modelType === 'box' && <BoxGeometry args={[1, 1, 1]} />}
-      {modelType === 'sphere' && <SphereGeometry args={[0.7, 64, 64]} />}
-      {modelType === 'torus' && <TorusGeometry args={[0.5, 0.2, 32, 100]} />}
-      {modelType === 'cylinder' && <CylinderGeometry args={[0.5, 0.5, 1, 32]} />}
-      {modelType === 'cone' && <ConeGeometry args={[0.5, 1, 32]} />}
-      {modelType === 'knot' && <TorusKnotGeometry args={[0.4, 0.15, 128, 32]} />}
-      {modelType === 'icosahedron' && <IcosahedronGeometry args={[0.8, 15]} />}
+    <MeshComp castShadow={viewMode === 'material'} receiveShadow={viewMode === 'material'}>
+      {modelType === 'box' && <boxGeometry args={[1, 1, 1]} />}
+      {modelType === 'sphere' && <sphereGeometry args={[0.7, 64, 64]} />}
+      {modelType === 'torus' && <torusGeometry args={[0.5, 0.2, 32, 100]} />}
+      {modelType === 'cylinder' && <cylinderGeometry args={[0.5, 0.5, 1, 32]} />}
+      {modelType === 'cone' && <coneGeometry args={[0.5, 1, 32]} />}
+      {modelType === 'knot' && <torusKnotGeometry args={[0.4, 0.15, 128, 32]} />}
+      {modelType === 'icosahedron' && <icosahedronGeometry args={[0.8, 15]} />}
       
-      {activeSettings ? (
+      {viewMode === 'wireframe' ? (
+        <Primitive object={wireframeMaterial} attach="material" />
+      ) : activeSettings ? (
         <Primitive object={createMaterial(activeSettings)} attach="material" />
       ) : (
         <MeshStandardMaterial color="#3b82f6" />

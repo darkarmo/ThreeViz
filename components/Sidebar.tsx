@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { AppState, MaterialSettings, MaterialType, ModelType } from '../types';
-import { Palette, Box, Layers, MousePointer2, Sparkles, Target, Grid3X3 } from 'lucide-react';
+import { AppState, MaterialSettings, MaterialType, ModelType, ViewMode } from '../types';
+import { Palette, Box, Layers, MousePointer2, Sparkles, Target, Grid3X3, Eye } from 'lucide-react';
 import { MATERIAL_PRESETS_DATA } from '../constants';
 
 interface SidebarProps {
@@ -96,6 +96,37 @@ const Sidebar: React.FC<SidebarProps> = ({ state, updateState, updateMaterial, s
 
   return (
     <div className="animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
+      
+      <ControlGroup title="Viewport Options" icon={Eye}>
+        <div className="flex p-1 bg-slate-800 rounded-lg">
+          {(['material', 'wireframe'] as ViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => updateState('scene', 'viewMode', mode)}
+              className={`flex-1 py-2 text-[9px] font-black uppercase rounded-md transition-all cursor-pointer ${
+                state.scene.viewMode === mode 
+                ? 'bg-blue-600 text-white shadow-lg' 
+                : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {mode === 'material' ? 'Material View' : 'Wireframe View'}
+            </button>
+          ))}
+        </div>
+        <div className="px-2">
+          <p className="text-[9px] text-slate-500 uppercase leading-relaxed text-center italic mt-2">
+            {state.scene.viewMode === 'wireframe' 
+              ? 'Preview Mode: Post-processing and heavy scene calculations are bypassed for maximum performance.' 
+              : 'Production Mode: Full fidelity active.'}
+          </p>
+          <p className="text-[8px] text-blue-500/50 uppercase text-center mt-1 tracking-tighter">
+            * Wireframe mode does not affect your final code output.
+          </p>
+        </div>
+      </ControlGroup>
+
+      <div className="h-px bg-slate-800/50 my-8" />
+
       <ControlGroup title="Model Geometry" icon={Box}>
         <div className="grid grid-cols-4 gap-2">
           {modelTypes.map((type) => (
@@ -116,107 +147,111 @@ const Sidebar: React.FC<SidebarProps> = ({ state, updateState, updateMaterial, s
 
       <div className="h-px bg-slate-800/50 my-8" />
 
-      <ControlGroup title="Material Focus" icon={Target}>
-        <div className="space-y-3">
-          <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Select Sub-Material</label>
-          <select 
-            value={state.selectedMaterialId}
-            onChange={(e) => setSelectedMaterialId(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs py-2 px-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
-          >
-            {(Object.entries(state.materials) as [string, MaterialSettings][]).map(([id, mat]) => (
-              <option key={id} value={id}>{mat.name}</option>
-            ))}
-          </select>
-          <Toggle 
-            label="Override GLTF materials" 
-            value={state.scene.overrideMaterials} 
-            onChange={(v: boolean) => updateState('scene', 'overrideMaterials', v)} 
-          />
-        </div>
-      </ControlGroup>
-
-      <div className="h-px bg-slate-800/50 my-8" />
-
-      <ControlGroup title="Material Engine" icon={MousePointer2}>
-        <div className="grid grid-cols-3 gap-1 bg-slate-800 p-1 rounded-lg mb-6">
-          {materialTypes.map((t) => (
-            <button
-              key={t}
-              onClick={() => updateMaterial('type', t)}
-              className={`py-1.5 text-[8px] font-black uppercase rounded transition-all cursor-pointer ${
-                activeMat.type === t ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(MATERIAL_PRESETS_DATA).map(([name, data]) => (
-            <button
-              key={name}
-              onClick={() => applyPreset(data)}
-              className="px-3 py-2 text-[9px] font-bold bg-slate-800 hover:bg-blue-600/20 border border-slate-700 hover:border-blue-500/50 rounded-lg transition-all text-slate-400 hover:text-white cursor-pointer"
-            >
-              {name}
-            </button>
-          ))}
-        </div>
-      </ControlGroup>
-
-      <div className="h-px bg-slate-800/50 my-8" />
-
-      <ControlGroup title="Visual Properties" icon={Palette}>
-        {supportsColor && (
-          <ColorPicker label="Base Color" value={activeMat.color} onChange={(v: string) => updateMaterial('color', v)} />
-        )}
-        
-        {supportsEmissive && (
-          <div className="space-y-6 pt-4 border-t border-slate-800/50">
-            <ColorPicker label="Emissive" value={activeMat.emissive} onChange={(v: string) => updateMaterial('emissive', v)} />
-            <Slider label="Emissive Intensity" value={activeMat.emissiveIntensity} min={0} max={100} step={1} onChange={(v: number) => updateMaterial('emissiveIntensity', v)} />
-          </div>
-        )}
-
-        {supportsSpecular && (
-          <div className="space-y-6 pt-4 border-t border-slate-800">
-            <h4 className="text-[9px] text-blue-400 uppercase font-black tracking-widest flex items-center gap-2">
-               <Sparkles size={10} /> Phong Highlights
-            </h4>
-            <ColorPicker label="Specular Color" value={activeMat.specular} onChange={(v: string) => updateMaterial('specular', v)} />
-            <Slider label="Shininess" value={activeMat.shininess} min={0} max={100} step={1} onChange={(v: number) => updateMaterial('shininess', v)} />
-          </div>
-        )}
-
-        {supportsPBR && (
-          <div className="space-y-6 pt-4 border-t border-slate-800">
-            <Slider label="Metalness" value={activeMat.metalness} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('metalness', v)} />
-            <Slider label="Roughness" value={activeMat.roughness} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('roughness', v)} />
-            <Slider label="Env Map Intensity" value={activeMat.envMapIntensity} min={0} max={5} step={0.1} onChange={(v: number) => updateMaterial('envMapIntensity', v)} />
-          </div>
-        )}
-
-        <div className="pt-4 border-t border-slate-800 space-y-6">
-          <Slider label="Opacity (Alpha)" value={activeMat.opacity} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('opacity', v)} />
-          <Toggle label="Wireframe" value={activeMat.wireframe} onChange={(v: boolean) => updateMaterial('wireframe', v)} />
-        </div>
-      </ControlGroup>
-
-      {supportsClearcoat && (
-        <>
-          <div className="h-px bg-slate-800/50 my-8" />
-          <ControlGroup title="Clearcoat & Transmission" icon={Layers}>
-            <Slider label="Clearcoat" value={activeMat.clearcoat} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('clearcoat', v)} />
-            <Slider label="Clearcoat Roughness" value={activeMat.clearcoatRoughness} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('clearcoatRoughness', v)} />
-            <Slider label="Transmission" value={activeMat.transmission} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('transmission', v)} />
-            <Slider label="Thickness" value={activeMat.thickness} min={0} max={5} step={0.1} onChange={(v: number) => updateMaterial('thickness', v)} />
-            <Slider label="IOR" value={activeMat.ior} min={1} max={2.3} step={0.01} onChange={(v: number) => updateMaterial('ior', v)} />
+      {state.scene.viewMode === 'material' && (
+        <div className="animate-in fade-in duration-300">
+          <ControlGroup title="Material Focus" icon={Target}>
+            <div className="space-y-3">
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Select Sub-Material</label>
+              <select 
+                value={state.selectedMaterialId}
+                onChange={(e) => setSelectedMaterialId(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs py-2 px-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
+              >
+                {(Object.entries(state.materials) as [string, MaterialSettings][]).map(([id, mat]) => (
+                  <option key={id} value={id}>{mat.name}</option>
+                ))}
+              </select>
+              <Toggle 
+                label="Override GLTF materials" 
+                value={state.scene.overrideMaterials} 
+                onChange={(v: boolean) => updateState('scene', 'overrideMaterials', v)} 
+              />
+            </div>
           </ControlGroup>
-        </>
-      )}
 
-      <div className="h-px bg-slate-800/50 my-8" />
+          <div className="h-px bg-slate-800/50 my-8" />
+
+          <ControlGroup title="Material Engine" icon={MousePointer2}>
+            <div className="grid grid-cols-3 gap-1 bg-slate-800 p-1 rounded-lg mb-6">
+              {materialTypes.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => updateMaterial('type', t)}
+                  className={`py-1.5 text-[8px] font-black uppercase rounded transition-all cursor-pointer ${
+                    activeMat.type === t ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(MATERIAL_PRESETS_DATA).map(([name, data]) => (
+                <button
+                  key={name}
+                  onClick={() => applyPreset(data)}
+                  className="px-3 py-2 text-[9px] font-bold bg-slate-800 hover:bg-blue-600/20 border border-slate-700 hover:border-blue-500/50 rounded-lg transition-all text-slate-400 hover:text-white cursor-pointer"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </ControlGroup>
+
+          <div className="h-px bg-slate-800/50 my-8" />
+
+          <ControlGroup title="Visual Properties" icon={Palette}>
+            {supportsColor && (
+              <ColorPicker label="Base Color" value={activeMat.color} onChange={(v: string) => updateMaterial('color', v)} />
+            )}
+            
+            {supportsEmissive && (
+              <div className="space-y-6 pt-4 border-t border-slate-800/50">
+                <ColorPicker label="Emissive" value={activeMat.emissive} onChange={(v: string) => updateMaterial('emissive', v)} />
+                <Slider label="Emissive Intensity" value={activeMat.emissiveIntensity} min={0} max={100} step={1} onChange={(v: number) => updateMaterial('emissiveIntensity', v)} />
+              </div>
+            )}
+
+            {supportsSpecular && (
+              <div className="space-y-6 pt-4 border-t border-slate-800">
+                <h4 className="text-[9px] text-blue-400 uppercase font-black tracking-widest flex items-center gap-2">
+                   <Sparkles size={10} /> Phong Highlights
+                </h4>
+                <ColorPicker label="Specular Color" value={activeMat.specular} onChange={(v: string) => updateMaterial('specular', v)} />
+                <Slider label="Shininess" value={activeMat.shininess} min={0} max={100} step={1} onChange={(v: number) => updateMaterial('shininess', v)} />
+              </div>
+            )}
+
+            {supportsPBR && (
+              <div className="space-y-6 pt-4 border-t border-slate-800">
+                <Slider label="Metalness" value={activeMat.metalness} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('metalness', v)} />
+                <Slider label="Roughness" value={activeMat.roughness} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('roughness', v)} />
+                <Slider label="Env Map Intensity" value={activeMat.envMapIntensity} min={0} max={5} step={0.1} onChange={(v: number) => updateMaterial('envMapIntensity', v)} />
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-slate-800 space-y-6">
+              <Slider label="Opacity (Alpha)" value={activeMat.opacity} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('opacity', v)} />
+              <Toggle label="Wireframe" value={activeMat.wireframe} onChange={(v: boolean) => updateMaterial('wireframe', v)} />
+            </div>
+          </ControlGroup>
+
+          {supportsClearcoat && (
+            <>
+              <div className="h-px bg-slate-800/50 my-8" />
+              <ControlGroup title="Clearcoat & Transmission" icon={Layers}>
+                <Slider label="Clearcoat" value={activeMat.clearcoat} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('clearcoat', v)} />
+                <Slider label="Clearcoat Roughness" value={activeMat.clearcoatRoughness} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('clearcoatRoughness', v)} />
+                <Slider label="Transmission" value={activeMat.transmission} min={0} max={1} step={0.01} onChange={(v: number) => updateMaterial('transmission', v)} />
+                <Slider label="Thickness" value={activeMat.thickness} min={0} max={5} step={0.1} onChange={(v: number) => updateMaterial('thickness', v)} />
+                <Slider label="IOR" value={activeMat.ior} min={1} max={2.3} step={0.01} onChange={(v: number) => updateMaterial('ior', v)} />
+              </ControlGroup>
+            </>
+          )}
+
+          <div className="h-px bg-slate-800/50 my-8" />
+        </div>
+      )}
 
       <ControlGroup title="Scene & Environment" icon={Grid3X3}>
         <Toggle label="Show Floor Plane" value={state.scene.showPlane} onChange={(v: boolean) => updateState('scene', 'showPlane', v)} />

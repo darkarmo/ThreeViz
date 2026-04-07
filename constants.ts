@@ -48,7 +48,8 @@ export const INITIAL_STATE: AppState = {
     modelType: 'icosahedron',
     overrideMaterials: true,
     showHelpers: true,
-    environmentPreset: 'city'
+    environmentPreset: 'city',
+    viewMode: 'material'
   },
   lights: [
     {

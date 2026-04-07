@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useRef, Suspense, useTransition } from 'react';
+import React, { useState, useCallback, useRef, Suspense, useTransition, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { 
@@ -61,12 +61,14 @@ const ColorComp = 'color' as any;
 const DynamicLight: React.FC<{ light: LightSettings, globalShowHelpers: boolean }> = ({ light, globalShowHelpers }) => {
   const lightRef = useRef<any>(null);
   
-  (useHelper as any)(globalShowHelpers && light.type === 'directional' ? lightRef : null, THREE.DirectionalLightHelper, 1, 'white');
-  (useHelper as any)(globalShowHelpers && light.type === 'point' ? lightRef : null, THREE.PointLightHelper, 0.5, light.color);
-  (useHelper as any)(globalShowHelpers && light.type === 'spot' ? lightRef : null, THREE.SpotLightHelper, 'white');
-  (useHelper as any)(globalShowHelpers && light.type === 'hemisphere' ? lightRef : null, THREE.HemisphereLightHelper, 2, light.color);
-  (useHelper as any)(globalShowHelpers && light.type === 'rectArea' ? lightRef : null, RectAreaLightHelper as any, 'white');
-  (useHelper as any)(globalShowHelpers && light.showShadowHelper && lightRef.current?.shadow?.camera ? lightRef : null, THREE.CameraHelper);
+  // Fix: Corrected useHelper calls to pass valid constructors and handle types for custom helpers
+  useHelper(globalShowHelpers && light.type === 'directional' ? lightRef : null, THREE.DirectionalLightHelper, 1, 'white');
+  useHelper(globalShowHelpers && light.type === 'point' ? lightRef : null, THREE.PointLightHelper, 0.5, light.color);
+  useHelper(globalShowHelpers && light.type === 'spot' ? lightRef : null, THREE.SpotLightHelper, 'white');
+  useHelper(globalShowHelpers && light.type === 'hemisphere' ? lightRef : null, THREE.HemisphereLightHelper, 2, light.color);
+  // @ts-ignore: RectAreaLightHelper types can be strict in @react-three/drei
+  useHelper(globalShowHelpers && light.type === 'rectArea' ? lightRef : null, RectAreaLightHelper, 'white');
+  useHelper(globalShowHelpers && light.showShadowHelper && lightRef.current?.shadow?.camera ? lightRef : null, THREE.CameraHelper);
 
   switch (light.type) {
     case 'directional':
@@ -154,18 +156,33 @@ export default function App() {
 
   const handleUpdateLights = (lights: LightSettings[]) => setState(prev => ({ ...prev, lights }));
 
+  // Helper boolean to toggle heavy logic in viewport
+  const isMaterialMode = state.scene.viewMode === 'material';
+
+  const activeEffects = [];
+  if (state.effects.smaa.enabled) activeEffects.push(<SMAA key="smaa" />);
+  if (state.effects.fxaa.enabled) activeEffects.push(<FXAA key="fxaa" />);
+  if (state.effects.bloom.enabled) activeEffects.push(<Bloom key="bloom" luminanceThreshold={state.effects.bloom.threshold} intensity={state.effects.bloom.intensity} radius={state.effects.bloom.radius} mipmapBlur />);
+  if (state.effects.glitch.enabled) activeEffects.push(<Glitch key="glitch" delay={state.effects.glitch.delay} duration={state.effects.glitch.duration} strength={state.effects.glitch.strength} mode={state.effects.glitch.mode} />);
+  if (state.effects.dotScreen.enabled) activeEffects.push(<DotScreen key="dotscreen" angle={state.effects.dotScreen.angle} scale={state.effects.dotScreen.scale} />);
+  if (state.effects.pixelation.enabled) activeEffects.push(<Pixelation key="pixelation" granularity={state.effects.pixelation.granularity} />);
+  if (state.effects.depthOfField.enabled) activeEffects.push(<DepthOfField key="dof" focusDistance={state.effects.depthOfField.focusDistance} focalLength={state.effects.depthOfField.focalLength} bokehScale={state.effects.depthOfField.bokehScale} height={state.effects.depthOfField.height} />);
+  if (state.effects.noise.enabled) activeEffects.push(<Noise key="noise" opacity={state.effects.noise.opacity} />);
+  if (state.effects.vignette.enabled) activeEffects.push(<Vignette key="vignette" offset={state.effects.vignette.offset} darkness={state.effects.vignette.darkness} />);
+  if (state.effects.chromaticAberration.enabled) activeEffects.push(<ChromaticAberration key="chroma" offset={new THREE.Vector2(...state.effects.chromaticAberration.offset)} />);
+  if (state.effects.scanline.enabled) activeEffects.push(<Scanline key="scanline" density={state.effects.scanline.density} opacity={state.effects.scanline.opacity} />);
+  if (state.effects.ssao.enabled) activeEffects.push(
+    // @ts-ignore: SSAO types in @react-three/postprocessing can be strict about missing optional props
+    <SSAO key="ssao" samples={state.effects.ssao.samples} radius={state.effects.ssao.radius} intensity={state.effects.ssao.intensity} />
+  );
+  if (state.effects.outline.enabled) activeEffects.push(<Outline key="outline" edgeStrength={state.effects.outline.edgeStrength} pulseSpeed={state.effects.outline.pulseSpeed} visibleEdgeColor={parseInt(state.effects.outline.visibleEdgeColor.replace('#', '0x'))} hiddenEdgeColor={parseInt(state.effects.outline.hiddenEdgeColor.replace('#', '0x'))} />);
+
   return (
     <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".glb,.gltf,.obj" />
-      
       <main className="relative flex-1 bg-black">
-        {isPending ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 pointer-events-none">
-            <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-          </div>
-        ) : null}
-
-        <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 2]} gl={{ antialias: true, alpha: false, stencil: false }}>
+        {isPending && <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 pointer-events-none"><Loader2 className="w-10 h-10 text-blue-500 animate-spin" /></div>}
+        <Canvas shadows={{ type: THREE.PCFSoftShadowMap }} dpr={[1, 2]} gl={{ antialias: isMaterialMode, alpha: false, stencil: false }}>
           <ColorComp attach="background" args={[state.scene.background]} />
           <PerspectiveCamera makeDefault position={[4, 3, 4]} fov={50} />
           <OrbitControls makeDefault autoRotate={state.scene.autoRotate} autoRotateSpeed={0.5} enableDamping />
@@ -173,7 +190,8 @@ export default function App() {
           <AmbientLightComp intensity={state.scene.ambientIntensity} />
           {state.lights.map((light) => <DynamicLight key={light.id} light={light} globalShowHelpers={state.scene.showHelpers} />)}
           
-          {state.scene.environmentPreset !== 'none' ? <Environment preset={state.scene.environmentPreset as any} /> : null}
+          {/* Only render cost-heavy environment mapping in Material View */}
+          {isMaterialMode && state.scene.environmentPreset !== 'none' && <Environment preset={state.scene.environmentPreset as any} />}
           
           <GroupComp position={[0, 0, 0]}>
             <Float speed={1.5} rotationIntensity={0.2} floatIntensity={state.scene.showPlane ? 0 : 0.5}>
@@ -183,13 +201,14 @@ export default function App() {
                   modelType={state.scene.modelType} 
                   customUrl={customModel} 
                   override={state.scene.overrideMaterials} 
+                  viewMode={state.scene.viewMode} 
                   onMaterialsFound={onMaterialsDiscovered} 
                 />
               </Suspense>
             </Float>
           </GroupComp>
 
-          {state.scene.showPlane ? (
+          {state.scene.showPlane && (
             <MeshComp rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.0, 0]} receiveShadow>
               <PlaneGeometryComp args={[100, 100]} />
               <MeshStandardMaterialComp 
@@ -200,109 +219,37 @@ export default function App() {
                 opacity={state.scene.planeOpacity} 
               />
             </MeshComp>
-          ) : null}
+          )}
 
-          {state.scene.contactShadows ? <ContactShadows position={[0, -0.99, 0]} opacity={state.scene.shadowOpacity} scale={15} blur={state.scene.shadowBlur} far={3} /> : null}
-          {state.scene.gridHelper && state.scene.showPlane ? <Grid position={[0, -0.995, 0]} args={[20, 20]} sectionColor="#cbd5e1" cellColor="#94a3b8" fadeDistance={25} infiniteGrid /> : null}
+          {/* Lightweight Mode Disables Shadows and Grid fading logic if needed, but Grid is usually fine */}
+          {isMaterialMode && state.scene.contactShadows && <ContactShadows position={[0, -0.99, 0]} opacity={state.scene.shadowOpacity} scale={15} blur={state.scene.shadowBlur} far={3} />}
+          {state.scene.gridHelper && state.scene.showPlane && <Grid position={[0, -0.995, 0]} args={[20, 20]} sectionColor="#cbd5e1" cellColor="#94a3b8" fadeDistance={25} infiniteGrid />}
           
-          <EffectComposer multisampling={4}>
-            <SMAA enabled={state.effects.smaa.enabled} />
-            <FXAA enabled={state.effects.fxaa.enabled} />
-            <Bloom 
-              enabled={state.effects.bloom.enabled}
-              luminanceThreshold={state.effects.bloom.threshold} 
-              intensity={state.effects.bloom.intensity} 
-              radius={state.effects.bloom.radius} 
-              mipmapBlur 
-            />
-            <Glitch 
-              enabled={state.effects.glitch.enabled}
-              delay={state.effects.glitch.delay} 
-              duration={state.effects.glitch.duration} 
-              strength={state.effects.glitch.strength} 
-              mode={state.effects.glitch.mode} 
-            />
-            <DotScreen 
-              enabled={state.effects.dotScreen.enabled}
-              angle={state.effects.dotScreen.angle} 
-              scale={state.effects.dotScreen.scale} 
-            />
-            <Pixelation 
-              enabled={state.effects.pixelation.enabled}
-              granularity={state.effects.pixelation.granularity} 
-            />
-            <DepthOfField 
-              enabled={state.effects.depthOfField.enabled}
-              focusDistance={state.effects.depthOfField.focusDistance} 
-              focalLength={state.effects.depthOfField.focalLength} 
-              bokehScale={state.effects.depthOfField.bokehScale} 
-              height={state.effects.depthOfField.height} 
-            />
-            <Noise 
-              enabled={state.effects.noise.enabled}
-              opacity={state.effects.noise.opacity} 
-            />
-            <Vignette 
-              enabled={state.effects.vignette.enabled}
-              offset={state.effects.vignette.offset} 
-              darkness={state.effects.vignette.darkness} 
-            />
-            <ChromaticAberration 
-              enabled={state.effects.chromaticAberration.enabled}
-              offset={new THREE.Vector2(state.effects.chromaticAberration.offset[0], state.effects.chromaticAberration.offset[1])} 
-            />
-            <Scanline 
-              enabled={state.effects.scanline.enabled}
-              density={state.effects.scanline.density} 
-              opacity={state.effects.scanline.opacity} 
-            />
-            <SSAO 
-              enabled={state.effects.ssao.enabled}
-              samples={state.effects.ssao.samples} 
-              radius={state.effects.ssao.radius} 
-              intensity={state.effects.ssao.intensity} 
-            />
-            <Outline 
-              enabled={state.effects.outline.enabled}
-              edgeStrength={state.effects.outline.edgeStrength} 
-              pulseSpeed={state.effects.outline.pulseSpeed} 
-              visibleEdgeColor={parseInt(state.effects.outline.visibleEdgeColor.replace('#', '0x'))} 
-              hiddenEdgeColor={parseInt(state.effects.outline.hiddenEdgeColor.replace('#', '0x'))} 
-            />
-          </EffectComposer>
+          {isMaterialMode && activeEffects.length > 0 && (
+            <EffectComposer multisampling={4}>
+              {activeEffects}
+            </EffectComposer>
+          )}
           <BakeShadows />
         </Canvas>
-
-        <div className="absolute top-8 left-8 pointer-events-none select-none">
-          <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 tracking-tight">STUDIO PRO</h1>
-          <p className="text-slate-500 text-[10px] tracking-[0.4em] uppercase mt-2 flex items-center gap-2">
-            <Package size={12} className="text-slate-700" /> {state.scene.modelType === 'custom' ? 'External Mesh' : 'Standard Primitive'}
-          </p>
+        <div className="absolute top-6 left-6 pointer-events-none select-none">
+          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">Three.js Master Control</h1>
+          <p className="text-slate-500 text-[10px] tracking-[0.3em] uppercase mt-1 flex items-center gap-2"><Package size={10} /> {state.scene.modelType === 'custom' ? 'Complex Multi-Mesh Asset' : 'Internal Geometry'}</p>
         </div>
-
-        <div className="absolute bottom-8 left-8 flex flex-col gap-4 z-20">
-          <button 
-            onClick={() => fileInputRef.current?.click()} 
-            className="p-5 bg-blue-600 hover:bg-blue-500 rounded-2xl shadow-[0_10px_30px_rgba(37,99,235,0.4)] transition-all hover:scale-105 active:scale-95 group cursor-pointer" 
-            title="Import GLB/OBJ"
-          >
-            <Upload size={24} className="text-white" />
-          </button>
-        </div>
+        <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-6 left-6 p-4 bg-blue-600 hover:bg-blue-500 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all hover:scale-110 active:scale-95 group cursor-pointer" title="Upload GLB/OBJ"><Upload size={24} className="text-white" /></button>
       </main>
-
-      <div className="w-[450px] h-full bg-slate-900/95 backdrop-blur-2xl border-l border-white/5 flex flex-col shadow-2xl z-10 overflow-hidden">
-        <div className="flex bg-slate-950/40 p-2">
-          <button onClick={() => setActiveTab('settings')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'settings' ? 'text-blue-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Settings2 size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Properties</span></button>
-          <button onClick={() => setActiveTab('lights')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'lights' ? 'text-amber-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Lightbulb size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Lights</span></button>
-          <button onClick={() => setActiveTab('effects')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'effects' ? 'text-purple-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Wand2 size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Fx</span></button>
-          <button onClick={() => setActiveTab('code')} className={`flex-1 py-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'code' ? 'text-emerald-400 bg-white/5 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}><Code size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Export</span></button>
+      <div className="w-[440px] h-full bg-slate-900/98 backdrop-blur-xl border-l border-slate-800 flex flex-col shadow-2xl z-10 overflow-hidden">
+        <div className="flex border-b border-slate-800">
+          <button onClick={() => setActiveTab('settings')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'settings' ? 'text-blue-400 border-blue-500 bg-slate-800/30' : 'text-slate-50 border-transparent hover:text-slate-300'}`}><Settings2 size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Props</span></button>
+          <button onClick={() => setActiveTab('lights')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'lights' ? 'text-amber-400 border-amber-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Lightbulb size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Lights</span></button>
+          <button onClick={() => setActiveTab('effects')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'effects' ? 'text-purple-400 border-purple-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Wand2 size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">FX</span></button>
+          <button onClick={() => setActiveTab('code')} className={`flex-1 py-5 transition-all duration-200 border-b-2 flex items-center justify-center gap-2 cursor-pointer ${activeTab === 'code' ? 'text-emerald-400 border-emerald-500 bg-slate-800/30' : 'text-slate-500 border-transparent hover:text-slate-300'}`}><Code size={16} /><span className="text-[11px] font-bold uppercase tracking-widest">Code</span></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-2">
-          {activeTab === 'settings' ? <Sidebar state={state} updateState={updateState} updateMaterial={updateMaterial} setSelectedMaterialId={(id) => setTopState('selectedMaterialId', id)} /> : null}
-          {activeTab === 'lights' ? <LightsPanel lights={state.lights} onUpdateLights={handleUpdateLights} showHelpers={state.scene.showHelpers} onToggleHelpers={(v) => updateState('scene', 'showHelpers', v)} sceneAmbient={state.scene.ambientIntensity} onUpdateSceneAmbient={(v) => updateState('scene', 'ambientIntensity', v)} envPreset={state.scene.environmentPreset} onUpdateEnvPreset={(v) => updateState('scene', 'environmentPreset', v)} /> : null}
-          {activeTab === 'effects' ? <EffectsPanel effects={state.effects} onUpdateEffect={updateEffect} /> : null}
-          {activeTab === 'code' ? <CodePanel state={state} /> : null}
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          {activeTab === 'settings' && <Sidebar state={state} updateState={updateState} updateMaterial={updateMaterial} setSelectedMaterialId={(id) => setTopState('selectedMaterialId', id)} />}
+          {activeTab === 'lights' && <LightsPanel lights={state.lights} onUpdateLights={handleUpdateLights} showHelpers={state.scene.showHelpers} onToggleHelpers={(v) => updateState('scene', 'showHelpers', v)} sceneAmbient={state.scene.ambientIntensity} onUpdateSceneAmbient={(v) => updateState('scene', 'ambientIntensity', v)} envPreset={state.scene.environmentPreset} onUpdateEnvPreset={(v) => updateState('scene', 'environmentPreset', v)} />}
+          {activeTab === 'effects' && <EffectsPanel effects={state.effects} onUpdateEffect={updateEffect} />}
+          {activeTab === 'code' && <CodePanel state={state} />}
         </div>
       </div>
     </div>

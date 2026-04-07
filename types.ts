@@ -2,6 +2,7 @@
 export type MaterialType = 'basic' | 'phong' | 'standard' | 'physical' | 'lambert' | 'toon' | 'normal' | 'depth' | 'matcap';
 export type ModelType = 'icosahedron' | 'sphere' | 'box' | 'torus' | 'cylinder' | 'cone' | 'knot' | 'custom';
 export type LightType = 'ambient' | 'directional' | 'point' | 'spot' | 'hemisphere' | 'rectArea' | 'lightProbe';
+export type ViewMode = 'material' | 'wireframe';
 
 export interface EffectSettings {
   enabled: boolean;
@@ -65,6 +66,7 @@ export interface SceneSettings {
   overrideMaterials: boolean;
   showHelpers: boolean;
   environmentPreset: string;
+  viewMode: ViewMode;
 }
 
 export interface AppState {
