@@ -47,6 +47,17 @@ export interface MaterialSettings {
   specular: string;
   depthPacking: boolean;
   matcapUrl?: string;
+  map?: string;
+  emissiveMap?: string;
+  normalMap?: string;
+  roughnessMap?: string;
+  metalnessMap?: string;
+  uvRepeat?: [number, number];
+  uvOffset?: [number, number];
+  uvRotation?: number;
+  uvMirrorX?: boolean;
+  uvMirrorY?: boolean;
+  useVideoMaterial?: boolean;
 }
 
 export interface SceneSettings {
@@ -67,6 +78,10 @@ export interface SceneSettings {
   showHelpers: boolean;
   environmentPreset: string;
   viewMode: ViewMode;
+  screenSpacePanning: boolean;
+  autoDepth: boolean;
+  zoomSpeed: number;
+  normalizeMesh: boolean;
 }
 
 export interface AppState {
@@ -92,3 +107,10 @@ export interface AppState {
 }
 
 export type TabType = 'settings' | 'lights' | 'effects' | 'code';
+
+export type ImportStrategy = 'default' | 'read';
+
+export interface DiscoveredMaterial {
+  name: string;
+  props?: Partial<MaterialSettings>;
+}

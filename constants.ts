@@ -5,14 +5,14 @@ export const createDefaultMaterial = (id: string, name: string): MaterialSetting
   id,
   name,
   type: 'standard',
-  color: '#3b82f6',
+  color: '#606060',
   emissive: '#000000',
   emissiveIntensity: 0,
-  metalness: 0.5,
-  roughness: 0.5,
+  metalness: 0.8,
+  roughness: 0,
   wireframe: false,
-  opacity: 1.0,
-  transparent: false,
+  opacity: 0.32,
+  transparent: true,
   envMapIntensity: 1.0,
   clearcoat: 0,
   clearcoatRoughness: 0,
@@ -23,6 +23,12 @@ export const createDefaultMaterial = (id: string, name: string): MaterialSetting
   shininess: 30,
   specular: '#111111',
   depthPacking: false,
+  uvRepeat: [1, 1],
+  uvOffset: [0, 0],
+  uvRotation: 0,
+  uvMirrorX: false,
+  uvMirrorY: false,
+  useVideoMaterial: false,
 });
 
 const DEFAULT_MAT_ID = 'default-material';
@@ -34,22 +40,26 @@ export const INITIAL_STATE: AppState = {
   },
   scene: {
     exposure: 1.0,
-    background: '#0f172a',
+    background: '#151515',
     autoRotate: true,
     gridHelper: true,
     ambientIntensity: 0.4,
     contactShadows: true,
     shadowOpacity: 0.4,
     shadowBlur: 2.0,
-    showPlane: true,
+    showPlane: false,
     planeColor: '#e2e8f0',
     planeRoughness: 0.8,
     planeOpacity: 1.0,
     modelType: 'icosahedron',
     overrideMaterials: true,
-    showHelpers: true,
+    showHelpers: false,
     environmentPreset: 'city',
-    viewMode: 'material'
+    viewMode: 'material',
+    screenSpacePanning: true,
+    autoDepth: true,
+    zoomSpeed: 2.0,
+    normalizeMesh: false
   },
   lights: [
     {
@@ -107,5 +117,10 @@ export const MATERIAL_PRESETS_DATA = {
     opacity: 0.4,
     transparent: true,
     wireframe: true,
+  },
+  'Video Screen': {
+    type: 'basic',
+    color: '#ffffff',
+    useVideoMaterial: true,
   }
 };

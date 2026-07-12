@@ -1,5 +1,5 @@
 {
-  "name": "Three.js Master Control",
+  "name": "ThreeViz",
   "description": "A comprehensive 3D model viewer and post-processing studio. Real-time control over Bloom, Material properties, and Scene settings with dynamic Three.js code generation.",
   "requestFramePermissions": []
 }

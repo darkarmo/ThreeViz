@@ -11,29 +11,27 @@ interface EffectsPanelProps {
 const ControlGroup = ({ title, icon: Icon, enabled, onToggle, children }: any) => {
   const [isExpanded, setIsExpanded] = useState(enabled);
   return (
-    <div className={`mb-4 rounded-xl border transition-all duration-300 ${enabled ? 'bg-slate-800/40 border-purple-500/50 shadow-lg shadow-purple-500/5' : 'bg-slate-900/40 border-slate-800 opacity-70'}`}>
+    <div className={`hw-panel mb-4 transition-all duration-300 ${enabled ? '' : 'opacity-50'}`}>
       <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-center gap-3">
-          <div className={`p-1.5 rounded-lg transition-colors ${enabled ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-800 text-slate-500'}`}>
-            <Icon size={14} />
-          </div>
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em]">{title}</h3>
+          <Icon size={12} className={enabled ? 'text-purple-400' : 'text-neutral-600'} />
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{title}</h3>
         </div>
         <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
           <button 
             onClick={onToggle} 
-            className={`w-8 h-4 rounded-full transition-all relative cursor-pointer ${enabled ? 'bg-purple-600' : 'bg-slate-800'}`}
+            className={`w-8 h-4 rounded-none transition-all relative cursor-pointer border border-[#111] ${enabled ? 'bg-[#333] shadow-[inset_1px_1px_3px_rgba(0,0,0,0.8)]' : 'bg-[#1a1a1a] shadow-[inset_1px_1px_3px_rgba(0,0,0,0.8)]'}`}
           >
-            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${enabled ? 'left-4.5' : 'left-0.5'}`} />
+            <div className={`absolute top-0.5 w-2.5 h-2.5 bg-neutral-400 transition-all ${enabled ? 'left-4.5 bg-purple-500 shadow-[0_0_5px_rgba(168,85,247,0.5)]' : 'left-0.5 bg-neutral-600'}`} />
           </button>
-          <div className="text-slate-600">
-            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <div className="text-neutral-600">
+            {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </div>
         </div>
       </div>
       {isExpanded && (
-        <div className="p-4 pt-0 space-y-5 animate-in slide-in-from-top-2 duration-300">
-          <div className="h-px bg-slate-800/50 mb-4" />
+        <div className="p-4 pt-0 space-y-4 animate-in slide-in-from-top-2 duration-300">
+          <div className="h-px bg-[#111] mb-4" />
           {children}
         </div>
       )}
@@ -41,34 +39,39 @@ const ControlGroup = ({ title, icon: Icon, enabled, onToggle, children }: any) =
   );
 };
 
-const Slider = ({ label, value, min, max, step, onChange, unit = "" }: any) => (
-  <div className="group">
-    <div className="flex justify-between items-center mb-1.5">
-      <label className="text-[10px] font-bold text-slate-500 group-hover:text-slate-300 transition-colors uppercase tracking-widest">{label}</label>
-      <span className="text-[10px] font-mono text-purple-400 tabular-nums">{Array.isArray(value) ? `${value[0].toFixed(2)}, ${value[1].toFixed(2)}` : `${value}${unit}`}</span>
+const Slider = ({ label, value, min, max, step, onChange, unit = "" }: any) => {
+  const safeValue = value ?? 0;
+  return (
+    <div className="group">
+      <div className="flex justify-between items-center mb-2">
+        <label className="text-[10px] font-medium text-neutral-500 uppercase tracking-wider">{label}</label>
+        <span className="text-[10px] font-mono text-neutral-400 hw-screen px-1.5 py-0.5 tabular-nums">
+          {Array.isArray(safeValue) ? `${safeValue[0].toFixed(2)}, ${safeValue[1].toFixed(2)}` : `${safeValue}${unit}`}
+        </span>
+      </div>
+      <input 
+        type="range" 
+        min={min} 
+        max={max} 
+        step={step} 
+        value={Array.isArray(safeValue) ? safeValue[0] : safeValue}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full h-1 bg-[#111] rounded-none appearance-none cursor-pointer accent-neutral-400"
+      />
     </div>
-    <input 
-      type="range" 
-      min={min} 
-      max={max} 
-      step={step} 
-      value={Array.isArray(value) ? value[0] : value}
-      onChange={(e) => onChange(parseFloat(e.target.value))}
-      className="w-full h-1 bg-slate-800 rounded-full appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400 transition-all"
-    />
-  </div>
-);
+  );
+};
 
 const ColorPicker = ({ label, value, onChange }: any) => (
   <div className="flex justify-between items-center">
-    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{label}</label>
+    <label className="text-[10px] font-medium text-neutral-500 uppercase tracking-wider">{label}</label>
     <div className="flex items-center gap-2">
-      <span className="text-[10px] font-mono text-slate-500 uppercase">{value}</span>
+      <span className="text-[10px] font-mono text-neutral-500 uppercase">{value ?? '#000000'}</span>
       <input 
         type="color" 
-        value={value}
+        value={value ?? '#000000'}
         onChange={(e) => onChange(e.target.value)}
-        className="w-5 h-5 rounded bg-transparent border-none cursor-pointer ring-1 ring-slate-700 overflow-hidden"
+        className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer hw-screen"
       />
     </div>
   </div>
@@ -79,8 +82,8 @@ export default function EffectsPanel({ effects, onUpdateEffect }: EffectsPanelPr
     <div className="animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-xs font-black uppercase tracking-widest text-slate-500">Post-Processing</h2>
-          <p className="text-[9px] text-slate-600 uppercase mt-1">Enhance visual fidelity</p>
+          <h2 className="text-xs font-black uppercase tracking-widest text-neutral-500">Post-Processing</h2>
+          <p className="text-[9px] text-neutral-600 uppercase mt-1">Enhance visual fidelity</p>
         </div>
         <Wand2 size={16} className="text-purple-500 opacity-50" />
       </div>

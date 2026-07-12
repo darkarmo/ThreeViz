@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js Visualizer</title>
+    <title>ThreeViz</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <style>
@@ -13,7 +13,7 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #0f172a;
+            background-color: #262626; /* Matte dark gray background */
         }
         .fira-code {
             font-family: 'Fira Code', monospace;
@@ -22,14 +22,93 @@
             width: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #1e293b;
+            background: #1a1a1a;
         }
         ::-webkit-scrollbar-thumb {
-            background: #334155;
+            background: #333;
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
+            background: #444;
+        }
+
+        /* Hardware UI Classes */
+        .hw-panel {
+            background: #222222;
+            border: 1px solid #111111;
+            box-shadow: 10px 10px 20px rgba(0,0,0,0.6), -2px -2px 5px rgba(255,255,255,0.03);
+            border-radius: 2px;
+        }
+        .hw-screen {
+            background: #050505;
+            border-top: 1px solid #000000;
+            border-left: 1px solid #000000;
+            border-bottom: 1px solid #1a1a1a;
+            border-right: 1px solid #1a1a1a;
+            box-shadow: inset 2px 2px 10px rgba(0,0,0,1);
+            border-radius: 2px;
+        }
+        .hw-button {
+            background: #222222;
+            border-top: 1px solid #333333;
+            border-left: 1px solid #333333;
+            border-bottom: 1px solid #0a0a0a;
+            border-right: 1px solid #0a0a0a;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            border-radius: 2px;
+            transition: all 0.1s ease;
+            color: #888888;
+        }
+        .hw-button:hover {
+            color: #aaaaaa;
+            background: #252525;
+        }
+        .hw-button:active, .hw-button.active {
+            background: #1a1a1a;
+            border-top: 1px solid #000000;
+            border-left: 1px solid #000000;
+            border-bottom: 1px solid #222222;
+            border-right: 1px solid #222222;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.8);
+            color: #ffffff;
+        }
+        .hw-button.active-accent {
+            color: #60a5fa; /* Blue accent for active state */
+        }
+        .hw-input {
+            background: #111111;
+            border-top: 1px solid #000000;
+            border-left: 1px solid #000000;
+            border-bottom: 1px solid #222222;
+            border-right: 1px solid #222222;
+            box-shadow: inset 1px 1px 4px rgba(0,0,0,0.8);
+            color: #aaaaaa;
+            border-radius: 2px;
+        }
+        .hw-input:focus {
+            outline: none;
+            color: #ffffff;
+            border-bottom: 1px solid #3b82f6;
+        }
+        
+        /* Thin grid lines for grouped buttons */
+        .hw-grid-container {
+            background: #111;
+            gap: 1px;
+            padding: 1px;
+            border: 1px solid #111;
+            border-radius: 2px;
+        }
+        .hw-grid-item {
+            background: #222;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
+        }
+        .hw-grid-item:active, .hw-grid-item.active {
+            background: #1a1a1a;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.8);
+            border: none;
         }
     </style>
 <script type="importmap">
