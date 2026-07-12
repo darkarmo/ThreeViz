@@ -2,7 +2,8 @@
 import React, { useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useGLTF, useMatcapTexture } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useLoader } from '@react-three/fiber';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MaterialSettings, ModelType, ViewMode, DiscoveredMaterial } from '../types';
 
 // Simple global texture cache to prevent video resets and redundant loads
@@ -13,9 +14,11 @@ interface SceneModelProps {
   materials: Record<string, MaterialSettings>;
   modelType: ModelType;
   customUrl: string | null;
+  customModelName?: string | null;
   override: boolean;
   viewMode: ViewMode;
   onMaterialsFound?: (materials: DiscoveredMaterial[]) => void;
+  onLoadError?: (error: Error) => void;
   normalizeMesh: boolean;
 }
 
@@ -50,25 +53,23 @@ const serializeTex = (map: any): string | undefined => {
 const wireframeMaterial = new THREE.MeshBasicMaterial({ color: '#4ade80', wireframe: true });
 
 /**
- * Separated component to handle custom model loading.
+ * Shared hook to handle custom 3D model traversal and normalization.
  */
-const CustomModelInstance = ({ 
-  url, 
-  onMaterialsFound, 
-  nativeMaterials, 
+const useModelTraverseAndNormalize = ({
+  scene,
+  onMaterialsFound,
+  nativeMaterials,
   override,
   viewMode,
-  normalizeMesh
-}: { 
-  url: string, 
-  onMaterialsFound?: (materials: DiscoveredMaterial[]) => void,
-  nativeMaterials: Record<string, THREE.Material>,
-  override: boolean,
-  viewMode: ViewMode,
-  normalizeMesh: boolean
+  normalizeMesh,
+}: {
+  scene: any;
+  onMaterialsFound?: (materials: DiscoveredMaterial[]) => void;
+  nativeMaterials: Record<string, THREE.Material>;
+  override: boolean;
+  viewMode: ViewMode;
+  normalizeMesh: boolean;
 }) => {
-  const { scene } = useGLTF(url) as any;
-
   useEffect(() => {
     if (scene && onMaterialsFound) {
       const discovered: DiscoveredMaterial[] = [];
@@ -97,6 +98,7 @@ const CustomModelInstance = ({
               m.name = uniqueName;
               seenNames.add(uniqueName);
               
+              const firstMap = m.map || m.normalMap || m.roughnessMap || m.metalnessMap || m.emissiveMap;
               const props: any = {
                 color: m.color ? `#${m.color.getHexString()}` : undefined,
                 metalness: m.metalness ?? undefined,
@@ -119,9 +121,9 @@ const CustomModelInstance = ({
                 clearcoat: m.clearcoat ?? undefined,
                 clearcoatRoughness: m.clearcoatRoughness ?? undefined,
                 envMapIntensity: m.envMapIntensity ?? undefined,
-                uvRepeat: m.map?.repeat ? [m.map.repeat.x, m.map.repeat.y] : undefined,
-                uvOffset: m.map?.offset ? [m.map.offset.x, m.map.offset.y] : undefined,
-                uvRotation: m.map?.rotation,
+                uvRepeat: firstMap?.repeat ? [firstMap.repeat.x, firstMap.repeat.y] : undefined,
+                uvOffset: firstMap?.offset ? [firstMap.offset.x, firstMap.offset.y] : undefined,
+                uvRotation: firstMap?.rotation ?? undefined,
                 type: m.type?.replace('Mesh', '').replace('Material', '').toLowerCase() || 'standard'
               };
 
@@ -199,11 +201,163 @@ const CustomModelInstance = ({
       });
     }
   }, [scene, nativeMaterials, override, viewMode, normalizeMesh]);
+};
+
+/**
+ * Sub-component to handle GLTF model loading.
+ */
+const CustomGLTFInstance = ({ 
+  url, 
+  onMaterialsFound, 
+  nativeMaterials, 
+  override,
+  viewMode,
+  normalizeMesh
+}: { 
+  url: string, 
+  onMaterialsFound?: (materials: DiscoveredMaterial[]) => void,
+  nativeMaterials: Record<string, THREE.Material>,
+  override: boolean,
+  viewMode: ViewMode,
+  normalizeMesh: boolean
+}) => {
+  const { scene } = useGLTF(url) as any;
+
+  useModelTraverseAndNormalize({
+    scene,
+    onMaterialsFound,
+    nativeMaterials,
+    override,
+    viewMode,
+    normalizeMesh,
+  });
 
   return <Primitive object={scene} />;
 };
 
-const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl, override, viewMode, onMaterialsFound, normalizeMesh }) => {
+/**
+ * Sub-component to handle OBJ model loading.
+ */
+const CustomOBJInstance = ({ 
+  url, 
+  onMaterialsFound, 
+  nativeMaterials, 
+  override,
+  viewMode,
+  normalizeMesh
+}: { 
+  url: string, 
+  onMaterialsFound?: (materials: DiscoveredMaterial[]) => void,
+  nativeMaterials: Record<string, THREE.Material>,
+  override: boolean,
+  viewMode: ViewMode,
+  normalizeMesh: boolean
+}) => {
+  const scene = useLoader(OBJLoader, url) as any;
+
+  useModelTraverseAndNormalize({
+    scene,
+    onMaterialsFound,
+    nativeMaterials,
+    override,
+    viewMode,
+    normalizeMesh,
+  });
+
+  return <Primitive object={scene} />;
+};
+
+/**
+ * Main wrapper that selects the appropriate loader based on filename.
+ */
+const CustomModelInstance = ({ 
+  url, 
+  customModelName,
+  onMaterialsFound, 
+  nativeMaterials, 
+  override,
+  viewMode,
+  normalizeMesh
+}: { 
+  url: string, 
+  customModelName?: string | null,
+  onMaterialsFound?: (materials: DiscoveredMaterial[]) => void,
+  nativeMaterials: Record<string, THREE.Material>,
+  override: boolean,
+  viewMode: ViewMode,
+  normalizeMesh: boolean
+}) => {
+  const isObj = useMemo(() => {
+    return customModelName?.toLowerCase().endsWith('.obj') || url.toLowerCase().endsWith('.obj') || false;
+  }, [url, customModelName]);
+
+  if (isObj) {
+    return (
+      <CustomOBJInstance
+        url={url}
+        onMaterialsFound={onMaterialsFound}
+        nativeMaterials={nativeMaterials}
+        override={override}
+        viewMode={viewMode}
+        normalizeMesh={normalizeMesh}
+      />
+    );
+  }
+
+  return (
+    <CustomGLTFInstance
+      url={url}
+      onMaterialsFound={onMaterialsFound}
+      nativeMaterials={nativeMaterials}
+      override={override}
+      viewMode={viewMode}
+      normalizeMesh={normalizeMesh}
+    />
+  );
+};
+
+/**
+ * Catch errors gracefully so the R3F Canvas doesn't crash on corrupted or mismatched files.
+ */
+class ModelErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; onError?: (error: Error) => void; children?: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("ModelErrorBoundary caught loading error", error, errorInfo);
+    if (this.props.onError) {
+      this.props.onError(error);
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+const SceneModel: React.FC<SceneModelProps> = ({ 
+  materials, 
+  modelType, 
+  customUrl, 
+  customModelName,
+  override, 
+  viewMode, 
+  onMaterialsFound, 
+  onLoadError,
+  normalizeMesh 
+}) => {
   const [matcapTexture] = useMatcapTexture(0, 256);
 
   const createMaterial = (settings: MaterialSettings) => {
@@ -258,7 +412,7 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
     const applyUVs = (texture: THREE.Texture, settings: MaterialSettings) => {
       if (settings.uvRepeat) texture.repeat.set(settings.uvRepeat[0], settings.uvRepeat[1]);
       if (settings.uvOffset) texture.offset.set(settings.uvOffset[0], settings.uvOffset[1]);
-      if (settings.uvRotation) {
+      if (settings.uvRotation !== undefined) {
         texture.rotation = settings.uvRotation;
         texture.center.set(0.5, 0.5);
       }
@@ -307,6 +461,7 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
 
         const texture = new THREE.VideoTexture(video);
         texture.colorSpace = THREE.SRGBColorSpace;
+        texture.flipY = false;
         texture.wrapS = settings?.uvMirrorX ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
         texture.wrapT = settings?.uvMirrorY ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
         texture.minFilter = THREE.LinearFilter;
@@ -320,6 +475,7 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
 
       const texture = textureLoader.load(url);
       texture.colorSpace = THREE.SRGBColorSpace;
+      texture.flipY = false;
       texture.wrapS = settings?.uvMirrorX ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
       texture.wrapT = settings?.uvMirrorY ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
       if (settings) applyUVs(texture, settings);
@@ -330,6 +486,7 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
     const loadDataTexture = (url?: string, settings?: MaterialSettings) => {
       if (!url) return null;
       const texture = textureLoader.load(url);
+      texture.flipY = false;
       texture.wrapS = settings?.uvMirrorX ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
       texture.wrapT = settings?.uvMirrorY ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
       if (settings) applyUVs(texture, settings);
@@ -407,14 +564,28 @@ const SceneModel: React.FC<SceneModelProps> = ({ materials, modelType, customUrl
 
   if (modelType === 'custom' && customUrl) {
     return (
-      <CustomModelInstance 
-        url={customUrl} 
-        onMaterialsFound={onMaterialsFound}
-        nativeMaterials={nativeMaterials}
-        override={override}
-        viewMode={viewMode}
-        normalizeMesh={normalizeMesh}
-      />
+      <ModelErrorBoundary 
+        key={customUrl}
+        fallback={
+          <MeshComp>
+            <boxGeometry args={[1.2, 1.2, 1.2]} />
+            <meshStandardMaterial color="#ef4444" wireframe />
+          </MeshComp>
+        }
+        onError={(err) => {
+          if (onLoadError) onLoadError(err);
+        }}
+      >
+        <CustomModelInstance 
+          url={customUrl} 
+          customModelName={customModelName}
+          onMaterialsFound={onMaterialsFound}
+          nativeMaterials={nativeMaterials}
+          override={override}
+          viewMode={viewMode}
+          normalizeMesh={normalizeMesh}
+        />
+      </ModelErrorBoundary>
     );
   }
 

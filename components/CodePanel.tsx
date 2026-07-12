@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState, MaterialSettings, LightSettings } from '../types';
-import { Copy, Check, Terminal, Cpu, Save } from 'lucide-react';
+import { Copy, Check, Terminal, Cpu, RefreshCw } from 'lucide-react';
 
 interface CodePanelProps {
   state: AppState;
@@ -10,6 +10,9 @@ interface CodePanelProps {
 const CodePanel: React.FC<CodePanelProps> = ({ state, setState }) => {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [codeType, setCodeType] = useState<'r3f' | 'vanilla'>('r3f');
+  const [localCode, setLocalCode] = useState('');
+  const [syncedFeedback, setSyncedFeedback] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
 
   const getMaterialType = (mat: MaterialSettings) => {
@@ -37,6 +40,7 @@ const CodePanel: React.FC<CodePanelProps> = ({ state, setState }) => {
     props.push(`    name: '${mat.name}'`);
 
     if (mat.map) props.push(`    map: loadTexture('${mat.map}', [${mat.uvRepeat?.[0]||1}, ${mat.uvRepeat?.[1]||1}], [${mat.uvOffset?.[0]||0}, ${mat.uvOffset?.[1]||0}], ${mat.uvRotation||0})`);
+    if (mat.emissiveMap) props.push(`    emissiveMap: loadTexture('${mat.emissiveMap}', [${mat.uvRepeat?.[0]||1}, ${mat.uvRepeat?.[1]||1}], [${mat.uvOffset?.[0]||0}, ${mat.uvOffset?.[1]||0}], ${mat.uvRotation||0})`);
     if (mat.normalMap) props.push(`    normalMap: loadDataTexture('${mat.normalMap}', [${mat.uvRepeat?.[0]||1}, ${mat.uvRepeat?.[1]||1}], [${mat.uvOffset?.[0]||0}, ${mat.uvOffset?.[1]||0}], ${mat.uvRotation||0})`);
     if (mat.roughnessMap) props.push(`    roughnessMap: loadDataTexture('${mat.roughnessMap}', [${mat.uvRepeat?.[0]||1}, ${mat.uvRepeat?.[1]||1}], [${mat.uvOffset?.[0]||0}, ${mat.uvOffset?.[1]||0}], ${mat.uvRotation||0})`);
     if (mat.metalnessMap) props.push(`    metalnessMap: loadDataTexture('${mat.metalnessMap}', [${mat.uvRepeat?.[0]||1}, ${mat.uvRepeat?.[1]||1}], [${mat.uvOffset?.[0]||0}, ${mat.uvOffset?.[1]||0}], ${mat.uvRotation||0})`);
@@ -67,10 +71,6 @@ const CodePanel: React.FC<CodePanelProps> = ({ state, setState }) => {
 
     return props.join(',\n');
   };
-
-  const materialsCode = (Object.values(state.materials) as MaterialSettings[])
-    .map(mat => `  '${mat.name}': new THREE.${getMaterialType(mat)}({\n${generateMaterialProps(mat)}\n  })`)
-    .join(',\n');
 
   const generateLightCode = (light: LightSettings, index: number) => {
     let code = '';
@@ -111,11 +111,16 @@ const CodePanel: React.FC<CodePanelProps> = ({ state, setState }) => {
     return code;
   };
 
-  const lightsCode = state.lights.map((l, i) => generateLightCode(l, i)).join('\n\n');
+  // VANILLA JS GENERATOR
+  const getVanillaCode = () => {
+    const materialsCode = (Object.values(state.materials) as MaterialSettings[])
+      .map(mat => `  '${mat.name}': new THREE.${getMaterialType(mat)}({\n${generateMaterialProps(mat)}\n  })`)
+      .join(',\n');
 
-  const hasRectAreaLight = state.lights.some(l => l.type === 'rectArea');
+    const lightsCode = state.lights.map((l, i) => generateLightCode(l, i)).join('\n\n');
+    const hasRectAreaLight = state.lights.some(l => l.type === 'rectArea');
 
-  const fullComponentCode = `import * as THREE from 'three';
+    return `import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 ${hasRectAreaLight ? "import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';\n" : ''}
@@ -144,7 +149,7 @@ const textureLoader = new THREE.TextureLoader();
 const applyUVs = (tex, repeat, offset, rotation) => {
   if (repeat) tex.repeat.set(repeat[0], repeat[1]);
   if (offset) tex.offset.set(offset[0], offset[1]);
-  if (rotation) {
+  if (rotation !== undefined) {
     tex.rotation = rotation;
     tex.center.set(0.5, 0.5);
   }
@@ -152,6 +157,7 @@ const applyUVs = (tex, repeat, offset, rotation) => {
 const loadTexture = (url, repeat, offset, rotation) => {
   const tex = textureLoader.load(url);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.flipY = false;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   applyUVs(tex, repeat, offset, rotation);
@@ -159,6 +165,7 @@ const loadTexture = (url, repeat, offset, rotation) => {
 };
 const loadDataTexture = (url, repeat, offset, rotation) => {
   const tex = textureLoader.load(url);
+  tex.flipY = false;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   applyUVs(tex, repeat, offset, rotation);
@@ -221,14 +228,310 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });`;
+  };
 
-  const [localCode, setLocalCode] = useState(fullComponentCode);
-
-  useEffect(() => {
-    if (!isEditing) {
-      setLocalCode(fullComponentCode);
+  // REACT THREE FIBER GENERATOR
+  const generateR3FMaterialProps = (mat: MaterialSettings) => {
+    const props: string[] = [];
+    if (mat.type !== 'normal' && mat.type !== 'depth') {
+      props.push(`      color="${mat.color}"`);
     }
-  }, [fullComponentCode, isEditing]);
+    props.push(`      transparent={${mat.opacity < 1 || mat.transmission > 0}}`);
+    props.push(`      opacity={${mat.opacity.toFixed(2)}}`);
+    props.push(`      wireframe={${mat.wireframe}}`);
+    props.push(`      name="${mat.name}"`);
+
+    if (mat.map) props.push(`      map={mapTexture}`);
+    if (mat.emissiveMap) props.push(`      emissiveMap={emissiveTexture}`);
+    if (mat.normalMap) props.push(`      normalMap={normalTexture}`);
+    if (mat.roughnessMap) props.push(`      roughnessMap={roughnessTexture}`);
+    if (mat.metalnessMap) props.push(`      metalnessMap={metalnessTexture}`);
+
+    if (['phong', 'lambert', 'standard', 'physical'].includes(mat.type)) {
+      props.push(`      emissive="${mat.emissive}"`);
+      props.push(`      emissiveIntensity={${mat.emissiveIntensity.toFixed(1)}}`);
+    }
+
+    if (mat.type === 'phong') {
+      props.push(`      specular="${mat.specular}"`);
+      props.push(`      shininess={${mat.shininess.toFixed(0)}}`);
+    }
+
+    if (['standard', 'physical'].includes(mat.type)) {
+      props.push(`      metalness={${mat.metalness.toFixed(2)}}`);
+      props.push(`      roughness={${mat.roughness.toFixed(2)}}`);
+      props.push(`      envMapIntensity={${mat.envMapIntensity.toFixed(1)}}`);
+    }
+
+    if (mat.type === 'physical') {
+      props.push(`      clearcoat={${mat.clearcoat.toFixed(2)}}`);
+      props.push(`      clearcoatRoughness={${mat.clearcoatRoughness.toFixed(2)}}`);
+      props.push(`      transmission={${mat.transmission.toFixed(2)}}`);
+      props.push(`      thickness={${mat.thickness.toFixed(2)}}`);
+      props.push(`      ior={${mat.ior.toFixed(2)}}`);
+    }
+
+    return props.join('\n');
+  };
+
+  const generateR3FLightCode = (light: LightSettings) => {
+    switch (light.type) {
+      case 'ambient':
+        return `        <ambientLight color="${light.color}" intensity={${light.intensity.toFixed(1)}} />`;
+      case 'directional':
+        return `        <directionalLight 
+          color="${light.color}" 
+          intensity={${light.intensity.toFixed(1)}} 
+          position={[${light.position.join(', ')}]} 
+          castShadow={${light.castShadow}} 
+        />`;
+      case 'point':
+        return `        <pointLight 
+          color="${light.color}" 
+          intensity={${light.intensity.toFixed(1)}} 
+          position={[${light.position.join(', ')}]} 
+          castShadow={${light.castShadow}} 
+        />`;
+      case 'spot':
+        return `        <spotLight 
+          color="${light.color}" 
+          intensity={${light.intensity.toFixed(1)}} 
+          position={[${light.position.join(', ')}]} 
+          castShadow={${light.castShadow}} 
+        />`;
+      case 'hemisphere':
+        return `        <hemisphereLight 
+          color="${light.color}" 
+          groundColor="${light.groundColor || '#000000'}" 
+          intensity={${light.intensity.toFixed(1)}} 
+          position={[${light.position.join(', ')}]} 
+        />`;
+      case 'rectArea':
+        return `        <rectAreaLight 
+          color="${light.color}" 
+          intensity={${light.intensity.toFixed(1)}} 
+          width={${light.width || 1}} 
+          height={${light.height || 1}} 
+          position={[${light.position.join(', ')}]} 
+          ${light.rotation ? `rotation={[${light.rotation.join(', ')}]}` : ''}
+        />`;
+      default:
+        return '';
+    }
+  };
+
+  const generateR3FEffectsCode = () => {
+    const effectsList: string[] = [];
+    if (state.effects.smaa.enabled) effectsList.push('          <SMAA />');
+    if (state.effects.fxaa.enabled) effectsList.push('          <FXAA />');
+    if (state.effects.bloom.enabled) {
+      effectsList.push(`          <Bloom 
+            luminanceThreshold={${state.effects.bloom.threshold}} 
+            intensity={${state.effects.bloom.intensity}} 
+            radius={${state.effects.bloom.radius}} 
+            mipmapBlur 
+          />`);
+    }
+    if (state.effects.glitch.enabled) {
+      effectsList.push(`          <Glitch 
+            delay={[${state.effects.glitch.delay.join(', ')}]} 
+            duration={[${state.effects.glitch.duration.join(', ')}]} 
+            strength={[${state.effects.glitch.strength.join(', ')}]} 
+            mode="${state.effects.glitch.mode}" 
+          />`);
+    }
+    if (state.effects.dotScreen.enabled) {
+      effectsList.push(`          <DotScreen angle={${state.effects.dotScreen.angle}} scale={${state.effects.dotScreen.scale}} />`);
+    }
+    if (state.effects.pixelation.enabled) {
+      effectsList.push(`          <Pixelation granularity={${state.effects.pixelation.granularity}} />`);
+    }
+    if (state.effects.depthOfField.enabled) {
+      effectsList.push(`          <DepthOfField 
+            focusDistance={${state.effects.depthOfField.focusDistance}} 
+            focalLength={${state.effects.depthOfField.focalLength}} 
+            bokehScale={${state.effects.depthOfField.bokehScale}} 
+            height={${state.effects.depthOfField.height}} 
+          />`);
+    }
+    if (state.effects.noise.enabled) {
+      effectsList.push(`          <Noise opacity={${state.effects.noise.opacity}} />`);
+    }
+    if (state.effects.vignette.enabled) {
+      effectsList.push(`          <Vignette offset={${state.effects.vignette.offset}} darkness={${state.effects.vignette.darkness}} />`);
+    }
+    if (state.effects.chromaticAberration.enabled) {
+      effectsList.push(`          <ChromaticAberration offset={[${state.effects.chromaticAberration.offset.join(', ')}]} />`);
+    }
+    if (state.effects.scanline.enabled) {
+      effectsList.push(`          <Scanline density={${state.effects.scanline.density}} opacity={${state.effects.scanline.opacity}} />`);
+    }
+    if (state.effects.ssao.enabled) {
+      effectsList.push(`          <SSAO samples={${state.effects.ssao.samples}} radius={${state.effects.ssao.radius}} intensity={${state.effects.ssao.intensity}} />`);
+    }
+    if (state.effects.outline.enabled) {
+      effectsList.push(`          <Outline 
+            edgeStrength={${state.effects.outline.edgeStrength}} 
+            pulseSpeed={${state.effects.outline.pulseSpeed}} 
+            visibleEdgeColor={${parseInt(state.effects.outline.visibleEdgeColor.replace('#', '0x'))}} 
+            hiddenEdgeColor={${parseInt(state.effects.outline.hiddenEdgeColor.replace('#', '0x'))}} 
+          />`);
+    }
+
+    if (effectsList.length === 0) return '';
+    return `\n        {/* Post-Processing Effects */}\n        <EffectComposer multisampling={4}>\n${effectsList.join('\n')}\n        </EffectComposer>`;
+  };
+
+  const getR3FCode = () => {
+    const r3fMaterialsCode = (Object.values(state.materials) as MaterialSettings[])
+      .map(mat => {
+        const tag = mat.type === 'standard' ? 'meshStandardMaterial' : `mesh${mat.type.charAt(0).toUpperCase() + mat.type.slice(1)}Material`;
+        return `  '${mat.name}': (\n    <${tag}\n${generateR3FMaterialProps(mat)}\n    />\n  )`;
+      })
+      .join(',\n');
+
+    const r3fLightsCode = state.lights.map((l) => generateR3FLightCode(l)).join('\n');
+
+    const hasTextures = Object.values(state.materials).some((m: any) => m.map || m.normalMap || m.roughnessMap || m.metalnessMap || m.emissiveMap);
+    const textureLoaderImport = hasTextures ? `\nimport { useTexture } from '@react-three/drei';` : '';
+    const useTextureHook = hasTextures 
+      ? `\n  // Load your custom textures
+  // const mapTexture = useTexture('your_color_map.png');` 
+      : '';
+
+    const activePostCompNames = Object.entries(state.effects)
+      .filter(([_, value]: any) => value.enabled)
+      .map(([key]) => {
+        if (key === 'dotScreen') return 'DotScreen';
+        if (key === 'depthOfField') return 'DepthOfField';
+        if (key === 'chromaticAberration') return 'ChromaticAberration';
+        return key.charAt(0).toUpperCase() + key.slice(1);
+      });
+
+    const hasPostprocessing = activePostCompNames.length > 0;
+    const postprocessingImport = hasPostprocessing 
+      ? `\nimport { EffectComposer, ${activePostCompNames.join(', ')} } from '@react-three/postprocessing';` 
+      : '';
+
+    const modelName = state.scene.modelType === 'custom' ? 'your-model-url.glb' : `${state.scene.modelType}.glb`;
+
+    return `import React, { Suspense } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { 
+  OrbitControls, 
+  PerspectiveCamera, 
+  useGLTF,${state.scene.environmentPreset !== 'none' ? '\n  Environment,' : ''}${state.scene.contactShadows ? '\n  ContactShadows,' : ''}${state.scene.gridHelper ? '\n  Grid,' : ''}
+  BakeShadows 
+} from '@react-three/drei';${textureLoaderImport}${postprocessingImport}
+
+function Model({ url }) {
+  const { scene } = useGLTF(url);${useTextureHook}
+
+  // Custom material definitions configured via ThreeViz
+  const materials = {
+${r3fMaterialsCode}
+  };
+
+  React.useLayoutEffect(() => {
+    scene.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        ${state.scene.overrideMaterials ? `
+        // Map configured materials by mesh material name
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map(m => materials[m.name] || m);
+        } else if (child.material) {
+          const matched = materials[child.material.name];
+          if (matched) child.material = matched;
+        }` : ''}
+      }
+    });
+  }, [scene]);
+
+  return <primitive object={scene} />;
+}
+
+export default function ThreeVizScene() {
+  return (
+    <div style={{ width: '100vw', height: '100vh', background: '${state.scene.background}' }}>
+      <Canvas 
+        shadows
+        camera={{ position: [4, 3, 4], fov: 50 }}
+        gl={{ antialias: true, alpha: false, stencil: false }}
+      >
+        <color attach="background" args={['${state.scene.background}']} />
+        
+        {/* Navigation / Controls */}
+        <OrbitControls 
+          enableDamping 
+          dampingFactor={0.08}${state.scene.autoRotate ? '\n          autoRotate\n          autoRotateSpeed={0.5}' : ''}
+          zoomSpeed={${state.scene.zoomSpeed}}
+        />
+
+        {/* Lighting Setup */}
+${r3fLightsCode}
+${state.scene.environmentPreset !== 'none' ? `\n        {/* Studio Environment Map */}\n        <Environment preset="${state.scene.environmentPreset}" />` : ''}
+
+        {/* Scene Model */}
+        <Suspense fallback={null}>
+          <Model url="${modelName}" />
+        </Suspense>
+
+        {/* Floor and Shadow details */}
+${state.scene.showPlane ? `\n        {/* Floor Plane */}\n        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]} receiveShadow>
+          <planeGeometry args={[100, 100]} />
+          <meshStandardMaterial 
+            color="${state.scene.planeColor}" 
+            roughness={${state.scene.planeRoughness}} 
+            transparent={${state.scene.planeOpacity < 1}} 
+            opacity={${state.scene.planeOpacity}} 
+          />
+        </mesh>` : ''}${state.scene.contactShadows ? `\n        <ContactShadows position={[0, -0.99, 0]} opacity={${state.scene.shadowOpacity}} scale={15} blur={${state.scene.shadowBlur}} far={3} />` : ''}${state.scene.gridHelper && state.scene.showPlane ? `\n        <Grid position={[0, -0.995, 0]} args={[20, 20]} sectionColor="#444" cellColor="#222" fadeDistance={25} infiniteGrid />` : ''}
+${generateR3FEffectsCode()}
+
+        <BakeShadows />
+      </Canvas>
+    </div>
+  );
+}
+
+// Preload assets for snappy scene mounting
+useGLTF.preload("${modelName}");
+`;
+  };
+
+  // Generate code based on current selection
+  const generateCode = (type: 'r3f' | 'vanilla') => {
+    if (type === 'r3f') {
+      return getR3FCode();
+    } else {
+      return getVanillaCode();
+    }
+  };
+
+  const handleSelectOption = (type: 'r3f' | 'vanilla') => {
+    setCodeType(type);
+    const code = generateCode(type);
+    setLocalCode(code);
+    
+    // Brief visual confirmation
+    setSyncedFeedback(true);
+    setTimeout(() => setSyncedFeedback(false), 800);
+  };
+
+  const handleSync = () => {
+    const code = generateCode(codeType);
+    setLocalCode(code);
+    
+    setSyncedFeedback(true);
+    setTimeout(() => setSyncedFeedback(false), 800);
+  };
+
+  // Initialize once on mount
+  useEffect(() => {
+    setLocalCode(generateCode('r3f'));
+  }, []);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(localCode);
@@ -247,6 +550,8 @@ window.addEventListener('resize', () => {
     const newCode = e.target.value;
     setLocalCode(newCode);
     
+    if (codeType !== 'vanilla') return; // Only backward-parse Vanilla Three.js edits
+
     const newState = { ...state };
     let changed = false;
 
@@ -326,15 +631,27 @@ window.addEventListener('resize', () => {
 
   return (
     <div className="h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-500 pb-10">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Cpu size={12} className="text-emerald-500" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Three.js Visualizer Code</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">ThreeViz Code Export</span>
         </div>
         <div className="flex items-center gap-2">
           {isEditing && (
             <span className="text-[9px] text-amber-500 uppercase tracking-widest font-bold animate-pulse mr-2">Editing...</span>
           )}
+          <button 
+            onClick={handleSync}
+            className={`hw-button flex items-center gap-2 px-3 py-1.5 transition-all cursor-pointer ${
+              syncedFeedback ? 'active active-accent border-emerald-500/50 bg-emerald-500/10' : ''
+            }`}
+            title="Sync code with current visual edits"
+          >
+            <RefreshCw size={12} className={`transition-transform duration-500 ${syncedFeedback ? 'rotate-180 text-emerald-400' : ''}`} />
+            <span className="text-[10px] font-bold uppercase text-neutral-300">
+              {syncedFeedback ? 'Synced' : 'Sync'}
+            </span>
+          </button>
           <button 
             onClick={handleCopy}
             className={`hw-button flex items-center gap-2 px-3 py-1.5 transition-all cursor-pointer ${
@@ -342,9 +659,35 @@ window.addEventListener('resize', () => {
             }`}
           >
             {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-            <span className="text-[10px] font-bold uppercase">{copied ? 'Copied' : 'Copy All'}</span>
+            <span className="text-[10px] font-bold uppercase">{copied ? 'Copied' : 'Copy'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Code Generation Options */}
+      <div className="flex items-center gap-1.5 bg-[#202020] p-1 rounded-lg border border-white/5 mb-4">
+        <button
+          onClick={() => handleSelectOption('r3f')}
+          className={`flex-1 py-2 rounded-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            codeType === 'r3f' 
+              ? 'bg-[#181818] border border-emerald-500/30 text-emerald-400 shadow-sm' 
+              : 'text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.02]'
+          }`}
+        >
+          <Cpu size={12} />
+          <span className="text-[10px] font-bold uppercase tracking-wider">R3F Canvas</span>
+        </button>
+        <button
+          onClick={() => handleSelectOption('vanilla')}
+          className={`flex-1 py-2 rounded-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            codeType === 'vanilla' 
+              ? 'bg-[#181818] border border-emerald-500/30 text-emerald-400 shadow-sm' 
+              : 'text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.02]'
+          }`}
+        >
+          <Terminal size={12} />
+          <span className="text-[10px] font-bold uppercase tracking-wider">Vanilla JS</span>
+        </button>
       </div>
 
       <div className="flex-1 relative hw-screen overflow-hidden group">

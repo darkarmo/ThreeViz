@@ -31,7 +31,7 @@ import {
   Outline,
   Scanline
 } from '@react-three/postprocessing';
-import { Settings2, Code, Upload, Loader2, Package, Lightbulb, Wand2, Trash2, RotateCcw, Target, Crosshair, Maximize } from 'lucide-react';
+import { Settings2, Code, Upload, Loader2, Package, Lightbulb, Wand2, Trash2, RotateCcw, Target, Crosshair, Maximize, AlertTriangle } from 'lucide-react';
 import { INITIAL_STATE, createDefaultMaterial } from './constants';
 import { AppState, TabType, LightSettings, MaterialSettings, ImportStrategy, DiscoveredMaterial } from './types';
 
@@ -258,6 +258,8 @@ export default function App() {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const [activeTab, setActiveTab] = useState<TabType>('settings');
   const [customModel, setCustomModel] = useState<string | null>(null);
+  const [customModelName, setCustomModelName] = useState<string | null>(null);
+  const [modelError, setModelError] = useState<string | null>(null);
   const [hasCachedModel, setHasCachedModel] = useState(false);
   const [isStateLoaded, setIsStateLoaded] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -270,8 +272,9 @@ export default function App() {
   useEffect(() => {
     Promise.all([
       get('cached-model'),
+      get('cached-model-name'),
       get('app-state')
-    ]).then(([file, savedState]) => {
+    ]).then(([file, nameVal, savedState]) => {
       startTransition(() => {
         if (savedState) {
           setState(savedState as AppState);
@@ -279,6 +282,7 @@ export default function App() {
         if (file) {
           const url = URL.createObjectURL(file as File);
           setCustomModel(url);
+          setCustomModelName((nameVal as string) || (file as File).name || 'model.glb');
           setHasCachedModel(true);
           if (!savedState) {
             setState(prev => ({ ...prev, scene: { ...prev.scene, modelType: 'custom' } }));
@@ -350,12 +354,14 @@ export default function App() {
     
     setImportStrategy(strategy);
     setShowUploadModal(false);
+    setModelError(null);
     
     if (customModel) URL.revokeObjectURL(customModel);
     const url = URL.createObjectURL(pendingFile);
     
     startTransition(() => {
       setCustomModel(url);
+      setCustomModelName(pendingFile.name);
       setHasCachedModel(true);
       setState(prev => ({ 
         ...prev, 
@@ -367,15 +373,21 @@ export default function App() {
     
     // Save to IndexedDB
     set('cached-model', pendingFile).catch(console.error);
+    set('cached-model-name', pendingFile.name).catch(console.error);
     setPendingFile(null);
   };
 
   const clearCache = () => {
-    del('cached-model').then(() => {
+    Promise.all([
+      del('cached-model'),
+      del('cached-model-name')
+    ]).then(() => {
       if (customModel) URL.revokeObjectURL(customModel);
       startTransition(() => {
         setCustomModel(null);
+        setCustomModelName(null);
         setHasCachedModel(false);
+        setModelError(null);
         setState(prev => ({ ...prev, scene: { ...prev.scene, modelType: 'icosahedron' } }));
       });
     }).catch(console.error);
@@ -474,9 +486,11 @@ export default function App() {
                 materials={state.materials} 
                 modelType={state.scene.modelType} 
                 customUrl={customModel} 
+                customModelName={customModelName}
                 override={state.scene.overrideMaterials} 
                 viewMode={state.scene.viewMode} 
                 onMaterialsFound={onMaterialsDiscovered} 
+                onLoadError={(err) => setModelError(err.message)}
                 normalizeMesh={state.scene.normalizeMesh}
               />
             </Suspense>
@@ -512,6 +526,25 @@ export default function App() {
             <p className="text-[#60a5fa] text-[10px] tracking-[0.2em] uppercase flex items-center gap-2"><Package size={10} /> {state.scene.modelType === 'custom' ? 'Custom Asset' : 'Internal Geometry'}</p>
           </div>
         </div>
+        {modelError && (
+          <div className="absolute top-28 left-6 hw-panel p-4 border border-red-500/20 bg-red-500/5 max-w-xs pointer-events-auto flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 z-[60]">
+            <div className="flex items-center gap-2 text-red-400">
+              <AlertTriangle size={14} />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Model Error</span>
+            </div>
+            <p className="text-[9px] text-neutral-400 uppercase tracking-wide leading-relaxed">
+              {modelError.includes('JSON.parse') 
+                ? 'Failed to parse file. Make sure your GLTF/GLB is valid. If this is an OBJ file, ensure its extension is exactly .obj.'
+                : modelError}
+            </p>
+            <button 
+              onClick={() => setModelError(null)}
+              className="text-[9px] text-neutral-500 hover:text-white uppercase tracking-widest text-left mt-1 font-bold cursor-pointer transition-colors"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         <div className="absolute bottom-6 left-6 flex flex-col gap-3">
           {showResetConfirm && (
             <div className="hw-panel p-3 flex flex-col gap-3 mb-2 animate-in fade-in slide-in-from-left-2">
