@@ -8,11 +8,11 @@ ThreeViz is a visual middleware program and interactive studio that allows you t
 
 ## Core Features
 
-- 🎨 **Visual Material Configuration**: Fine-tune materials interactively (including color, emissive maps, normal maps, roughness, metalness, and parented material hierarchies).
-- 🚀 **Real-Time Post-Processing**: Direct visual control over camera and render effects like Bloom, Tone Mapping, and Scene-wide properties.
-- ⚙️ **Comprehensive 3D Model Viewer**: Load internal geometries or import custom 3D assets to preview them under customized environments immediately.
-- 💻 **Dynamic Code Export**: Automatically generates and highlights clean, optimized Three.js code reflecting your visual parameters, ready to be copy-pasted into your React Three Fiber or vanilla Three.js projects.
-- 🛠️ **Refined Design Interface**: An eye-safe, responsive dark control panel with detailed sliders, color pickers, and immediate visual feedback.
+-  **Visual Material Configuration**: Fine-tune materials interactively (including color, emissive maps, normal maps, roughness, metalness, and parented material hierarchies).
+-  **Real-Time Post-Processing**: Direct visual control over camera and render effects like Bloom, Tone Mapping, and Scene-wide properties.
+-  **Comprehensive 3D Model Viewer**: Load internal geometries or import custom 3D assets to preview them under customized environments immediately.
+-  **Dynamic Code Export**: Automatically generates and highlights clean, optimized Three.js code reflecting your visual parameters, ready to be copy-pasted into your React Three Fiber or vanilla Three.js projects.
+-  **Refined Design Interface**: An eye-safe, responsive dark control panel with detailed sliders, color pickers, and immediate visual feedback.
 
 ---
 
